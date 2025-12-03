@@ -45,18 +45,6 @@ blocks:
     coordinate: [552, 152.0]
     rotation: 0
     state: enabled
-- name: file_source
-  id: variable
-  parameters:
-    comment: ''
-    value: /home/kevin/PycharmProjects/TVWS/data/OneDrive_1_12-2-2025/10 Feet/20251119_23-24-44_1763612684_rx2_10ft14030_tx044.iq
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [712, 64.0]
-    rotation: 0
-    state: enabled
 - name: samp_rate
   id: variable
   parameters:
@@ -129,12 +117,12 @@ blocks:
     alias: ''
     begin_tag: pmt.PMT_NIL
     comment: ''
-    file: file_source
+    file: /home/kevin/PycharmProjects/TVWS/data/OneDrive_1_12-2-2025/10 Feet/20251119_23-24-44_1763612684_rx2_10ft14030_tx044.iq
     length: '0'
     maxoutbuf: '0'
     minoutbuf: '0'
     offset: '0'
-    repeat: 'False'
+    repeat: 'True'
     type: byte
     vlen: '1'
   states:

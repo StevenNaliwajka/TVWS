@@ -2,7 +2,7 @@ from Codebase.Plots.plot_freq_time_headmap import plot_freq_time_heatmap
 from Codebase.detect_peaks_in_iq import detect_peaks_in_iq
 
 # === Hard-coded configuration ===
-IQ_PATH = "/home/kevin/PycharmProjects/TVWS/data/OneDrive_1_12-2-2025/15 Feet/20251119_23-29-59_1763612999_rx2_15ft14030_tx044.iq"
+IQ_PATH = "/home/kevin/PycharmProjects/TVWS/data/OneDrive_1_12-2-2025/50 Feet/20251123_14-07-31_1763924851_rx2_50ft05240_tx144.iq"
 FS_HZ = 4.91e8          # <-- put your actual sample rate here
 TOP_N = 20            # number of strongest peaks to display
 MIN_HEIGHT = None     # or e.g. 0.1 to filter out small peaks
