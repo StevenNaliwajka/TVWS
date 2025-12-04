@@ -1,11 +1,9 @@
-# Codebase/plot_freq_time_heatmap.py
-
 from __future__ import annotations
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from Codebase.load_hackrf_iq import load_hackrf_iq
+from Codebase.ProcessSignal.load_hackrf_iq import load_hackrf_iq
 
 
 def plot_freq_time_heatmap(
@@ -14,9 +12,11 @@ def plot_freq_time_heatmap(
     center_freq_hz: float,
     span_mhz: float,
     window_size: int = 4096,
-    overlap: float = 0.5,
+    overlap: float = 100,
     show: bool = True,
     save_path: str | None = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
 ):
     """
     Plot a time-frequency heatmap from a HackRF .iq file.
@@ -38,11 +38,17 @@ def plot_freq_time_heatmap(
     window_size : int
         FFT window size (number of samples per time slice).
     overlap : float
-        Fractional overlap between windows (0.0 to <1.0).
+        If < 1.0, treated as fractional overlap between windows (0.0 to <1.0).
+        If >= 1.0, treated as hop size in samples (i.e., distance between
+        successive windows). With a fixed hop size and larger window_size,
+        the effective fractional overlap grows automatically.
     show : bool
         If True, call plt.show() at the end.
     save_path : str or None
         If not None, save the figure to this path.
+    vmin, vmax : float or None
+        Optional fixed color scale limits in dB. If None, they are chosen
+        from data percentiles for better contrast.
 
     Returns
     -------
@@ -61,26 +67,47 @@ def plot_freq_time_heatmap(
     if iq.size < window_size:
         raise ValueError("IQ data shorter than window size.")
 
-    hop_size = int(window_size * (1.0 - overlap))
-    if hop_size <= 0:
-        raise ValueError("overlap too large, hop_size becomes <= 0")
+    # --- Determine hop_size dynamically from overlap parameter ---
+    if overlap < 1.0:
+        # Interpret as fractional overlap
+        if overlap < 0.0 or overlap >= 1.0:
+            raise ValueError("Fractional overlap must be in [0.0, 1.0).")
+        hop_size = int(window_size * (1.0 - overlap))
+        if hop_size <= 0:
+            hop_size = 1
+    else:
+        # Interpret as hop size in samples
+        hop_size = int(overlap)
+        if hop_size <= 0:
+            hop_size = 1
+        # Ensure at least 1-sample hop and at most window_size-1
+        if hop_size >= window_size:
+            hop_size = window_size - 1
 
-    # Frequency axis for one FFT
+    # Number of frames we can get with this hop_size
+    n_frames = 1 + (iq.size - window_size) // hop_size
+    if n_frames <= 0:
+        raise ValueError(
+            "Not enough samples for given window_size and hop/overlap settings."
+        )
+
+    # --- Frequency axis ---
     freqs_hz = np.fft.fftfreq(window_size, d=1.0 / sample_rate_hz)
     freqs_hz = np.fft.fftshift(freqs_hz)  # center 0 Hz
 
-    # Limit to desired +/- span
     span_hz = span_mhz * 1e6
     mask = np.abs(freqs_hz) <= span_hz
     freqs_sel_hz = freqs_hz[mask]
     freqs_sel_mhz = freqs_sel_hz / 1e6  # offset from center in MHz
 
-    # Time-frequency matrix
-    window = np.hanning(window_size)
-    frames = []
-    times_sec = []
+    # --- Time-frequency matrix ---
+    window = np.hanning(window_size).astype(np.float32)
 
-    for start in range(0, iq.size - window_size + 1, hop_size):
+    frames = np.empty((n_frames, freqs_sel_hz.size), dtype=np.float32)
+    times_sec = np.empty(n_frames, dtype=np.float64)
+
+    for i in range(n_frames):
+        start = i * hop_size
         segment = iq[start : start + window_size]
 
         # Apply window
@@ -92,35 +119,65 @@ def plot_freq_time_heatmap(
         mag = np.abs(spectrum)
 
         # Keep only desired frequency range
-        frames.append(mag[mask])
+        frames[i, :] = mag[mask]
 
         # Time at center of the window (in seconds)
-        center_idx = start + window_size // 2
-        t_sec = center_idx / float(sample_rate_hz)
-        times_sec.append(t_sec)
+        center_idx = start + window_size / 2.0
+        times_sec[i] = center_idx / float(sample_rate_hz)
 
-    frames = np.array(frames)        # shape: (n_times, n_freqs)
-    times_sec = np.array(times_sec)  # seconds
-    times_ns = times_sec * 1e9       # convert to nanoseconds
+    times_ns = times_sec * 1e9  # convert to nanoseconds
 
-    # Convert amplitude to dB
+    # --- Convert amplitude to dB ---
     eps = 1e-12
     mag_db = 20.0 * np.log10(frames + eps)
 
-    # Plot: X = time (ns), Y = frequency → need mag_db.T (freq x time)
+    # Choose color scale for more detail if not specified
+    if vmin is None:
+        vmin = np.percentile(mag_db, 5)
+    if vmax is None:
+        vmax = np.percentile(mag_db, 99)
+
+    # --- Build bin edges so axes line up correctly with pcolormesh ---
+    # Assume approximately uniform spacing
+    if len(times_ns) > 1:
+        dt_ns = float(np.median(np.diff(times_ns)))
+    else:
+        dt_ns = window_size / sample_rate_hz * 1e9
+
+    if len(freqs_sel_mhz) > 1:
+        df_mhz = float(np.median(np.diff(freqs_sel_mhz)))
+    else:
+        df_mhz = span_mhz * 2.0
+
+    time_edges_ns = np.concatenate(
+        ([times_ns[0] - dt_ns / 2.0], times_ns + dt_ns / 2.0)
+    )
+    # Clamp to start at 0
+    time_edges_ns[0] = max(time_edges_ns[0], 0.0)
+
+    freq_edges_mhz = np.concatenate(
+        ([freqs_sel_mhz[0] - df_mhz / 2.0], freqs_sel_mhz + df_mhz / 2.0)
+    )
+
+    # --- Plot ---
     fig, ax = plt.subplots(figsize=(10, 6))
+
     img = ax.pcolormesh(
-        times_ns,        # X: time (ns)
-        freqs_sel_mhz,   # Y: frequency offset (MHz)
-        mag_db.T,        # Color: amplitude (dB)
+        time_edges_ns,        # X edges: time (ns)
+        freq_edges_mhz,       # Y edges: frequency offset (MHz)
+        mag_db.T,             # Color: amplitude (dB), shape (freq, time)
         shading="auto",
+        vmin=vmin,
+        vmax=vmax,
     )
 
     ax.set_xlabel("Time (ns)")
     ax.set_ylabel("Frequency offset from center (MHz)")
     ax.set_title(
-        f"Frequency–Time Amplitude\nCenter: {center_freq_hz/1e6:.3f} MHz, Span: ±{span_mhz:.3f} MHz"
+        f"Frequency–Time Amplitude\n"
+        f"Center: {center_freq_hz/1e6:.3f} MHz, Span: ±{span_mhz:.3f} MHz"
     )
+
     cbar = fig.colorbar(img, ax=ax)
     cbar.set_label("Amplitude (dB)")
 

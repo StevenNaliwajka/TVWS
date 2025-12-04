@@ -3,11 +3,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from Codebase.load_hackrf_iq import load_hackrf_iq
-
 
 def detect_peaks_in_iq(
-    iq_path: str,
+    iq,
     sample_rate_hz: float,
     method: str = "peakdetect",
     min_height: float | None = None,
@@ -35,8 +33,7 @@ def detect_peaks_in_iq(
             - peak: True for peaks (all rows here)
             - (plus any extra columns from findpeaks, e.g. score, rank)
     """
-    # 1) Load complex IQ
-    iq = load_hackrf_iq(iq_path)
+
 
     # 2) Magnitude vs time
     mag = np.abs(iq)
