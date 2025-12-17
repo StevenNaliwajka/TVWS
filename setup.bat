@@ -30,6 +30,5 @@ if not "%EC%"=="0" (
   exit /b %EC%
 )
 
-echo Starting TVWS Calculation Software.
 pause
 exit /b 0

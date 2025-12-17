@@ -3,6 +3,8 @@ __pycache__/
 *.py[codz]
 *$py.class
 Config/
+
+Logs/
 # C extensions
 *.so
 data/

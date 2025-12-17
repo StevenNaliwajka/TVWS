@@ -1,5 +1,5 @@
 # Codebase/Setup/run.ps1
-# Runs Codebase/run.py from PROJECT_ROOT, logs output, and pauses so the window stays open.
+# Runs Codebase/run.py from PROJECT_ROOT, logs output to PROJECT_ROOT/Logs/, and pauses so the window stays open.
 
 $ErrorActionPreference = "Stop"
 
@@ -18,7 +18,16 @@ try {
     Set-Location $ProjectRoot
 
     $RunPy = Join-Path $ProjectRoot "Codebase\run.py"
-    $Log   = Join-Path $ProjectRoot "run_log.txt"
+
+    # --- Logs folder + timestamped log file ---
+    $LogsDir = Join-Path $ProjectRoot "Logs"
+    if (-not (Test-Path -Path $LogsDir -PathType Container)) {
+        New-Item -Path $LogsDir -ItemType Directory | Out-Null
+    }
+
+    $Stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    $Log   = Join-Path $LogsDir "run_$Stamp.log"
+    # -----------------------------------------
 
     if (-not (Test-Path -Path $RunPy -PathType Leaf)) {
         Write-Host "ERROR: run.py not found at:"
@@ -53,7 +62,6 @@ try {
         Pause-Exit 1
     }
 
-
     $AllArgs = @()
     $AllArgs += $PythonArgs
     $AllArgs += @("-X","faulthandler","-u","-m","Codebase.run")
@@ -72,8 +80,8 @@ try {
     "" | Out-File -FilePath $Log -Append -Encoding utf8
 
     # Capture stdout/stderr to temp files (avoids pipe/Tee issues)
-    $StdOutPath = Join-Path $ProjectRoot "run_stdout.tmp.txt"
-    $StdErrPath = Join-Path $ProjectRoot "run_stderr.tmp.txt"
+    $StdOutPath = Join-Path $LogsDir "run_stdout_$Stamp.tmp.txt"
+    $StdErrPath = Join-Path $LogsDir "run_stderr_$Stamp.tmp.txt"
 
     if (Test-Path $StdOutPath) { Remove-Item $StdOutPath -Force }
     if (Test-Path $StdErrPath) { Remove-Item $StdErrPath -Force }
@@ -127,6 +135,7 @@ catch {
         Write-Host ($_.Exception | Format-List * -Force | Out-String)
     }
     Write-Host "--------------------------------"
-    Write-Host "See log (if created) in project root: run_log.txt"
+    Write-Host "See logs in:"
+    Write-Host "  $(Join-Path $ProjectRoot 'Logs')"
     Pause-Exit 1
 }

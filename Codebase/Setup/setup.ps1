@@ -3,11 +3,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # This script lives in: .../Codebase/Setup/setup.ps1
-$SCRIPT_DIR  = $PSScriptRoot
+$SCRIPT_DIR   = $PSScriptRoot
 $PROJECT_ROOT = (Resolve-Path (Join-Path $SCRIPT_DIR "..\..")).Path
 
-$CREATE_VENV = Join-Path $SCRIPT_DIR "create_venv.py"
-$MAKE_FOLDERS = Join-Path $SCRIPT_DIR "make_folders.py"
+$CREATE_VENV   = Join-Path $SCRIPT_DIR "create_venv.py"
+$MAKE_FOLDERS  = Join-Path $SCRIPT_DIR "make_folders.py"
+$SETUP_CONFIG  = Join-Path $SCRIPT_DIR "setup_config.py"   # <-- NEW
 
 function Assert-FileExists([string]$Path, [string]$Name) {
     if (-not (Test-Path -Path $Path -PathType Leaf)) {
@@ -15,8 +16,9 @@ function Assert-FileExists([string]$Path, [string]$Name) {
     }
 }
 
-Assert-FileExists $CREATE_VENV  "create_venv.py"
-Assert-FileExists $MAKE_FOLDERS "make_folders.py"
+Assert-FileExists $CREATE_VENV   "create_venv.py"
+Assert-FileExists $MAKE_FOLDERS  "make_folders.py"
+Assert-FileExists $SETUP_CONFIG  "setup_config.py"         # <-- NEW
 
 function Get-SystemPythonCommand {
     # Prefer the Windows Python launcher if available
@@ -31,17 +33,23 @@ Write-Host "Project root: $PROJECT_ROOT"
 Write-Host "Running: create_venv.py"
 & $sysPy[0] @($sysPy[1..($sysPy.Count-1)]) $CREATE_VENV
 
-# If your venv is created at $PROJECT_ROOT\.venv (common convention), use it for the next step
+# If your venv is created at $PROJECT_ROOT\.venv (common convention), use it for the next steps
 $VENV_PY = Join-Path $PROJECT_ROOT ".venv\Scripts\python.exe"
 
 if (Test-Path -Path $VENV_PY -PathType Leaf) {
     Write-Host "Using venv python: $VENV_PY"
+
     Write-Host "Running: make_folders.py"
     & $VENV_PY $MAKE_FOLDERS
+
+    Write-Host "Running: setup_config.py"
+    & $VENV_PY $SETUP_CONFIG
 } else {
     Write-Host "Venv python not found at: $VENV_PY"
-    Write-Host "Falling back to system python for: make_folders.py"
+    Write-Host "Falling back to system python for: make_folders.py + setup_config.py"
+
     & $sysPy[0] @($sysPy[1..($sysPy.Count-1)]) $MAKE_FOLDERS
+    & $sysPy[0] @($sysPy[1..($sysPy.Count-1)]) $SETUP_CONFIG
 }
 
 Write-Host "Setup complete."
