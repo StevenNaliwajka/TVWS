@@ -15,7 +15,7 @@ def filter_singal(metadata, iq):
 
     ## Banpass filter
 
-    #iq = bandpass_filter(metadata, iq)
+    iq = bandpass_filter(metadata, iq)
     #plot_amplitude_freq(metadata, iq)
 
     #plot_freq_time_heatmap(metadata, iq)
@@ -23,7 +23,7 @@ def filter_singal(metadata, iq):
 
     ## Lower filter
     iq = lower_filter(metadata, iq)
-    plot_amplitude_freq(metadata, iq)
+    #plot_amplitude_freq(metadata, iq)
     #plot_freq_time_heatmap(metadata, iq)
     #plot_amplitude_time(metadata, iq)
 
