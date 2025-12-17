@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from findpeaks import findpeaks
 import pandas as pd
 import numpy as np
@@ -5,46 +9,36 @@ import matplotlib.pyplot as plt
 
 
 def detect_peaks_in_iq(
+    meta_data,
     iq,
-    sample_rate_hz: float,
     method: str = "peakdetect",
-    min_height: float | None = None,
+    min_height: Optional[float] = None,
 ) -> pd.DataFrame:
     """
-    Detect peaks in a HackRF .iq file and return their times in nanoseconds.
+    Detect peaks in an IQ array and return their times in nanoseconds.
 
-    Parameters
-    ----------
-    iq_path : str
-        Path to the .iq file.
-    sample_rate_hz : float
-        Sample rate used when recording (e.g. 10e6 for 10 Msps).
-    method : str
-        findpeaks method: 'peakdetect', 'topology', or 'caerus'.
-    min_height : float, optional
-        Minimum amplitude (on |IQ|) for a point to be kept as a peak.
-
-    Returns
-    -------
-    peaks_df : pandas.DataFrame
-        Columns:
-            - time_ns: time of the peak in nanoseconds
-            - amplitude: |IQ| at the peak
-            - peak: True for peaks (all rows here)
-            - (plus any extra columns from findpeaks, e.g. score, rank)
+    meta_data is an object with attributes like:
+      - meta_data.sample_rate_hz
     """
 
+    # Pull sample rate from metadata
+    if not hasattr(meta_data, "sample_rate_hz"):
+        raise AttributeError("meta_data must have attribute: sample_rate_hz")
+
+    sample_rate_hz = float(meta_data.sample_rate_hz)
+    if sample_rate_hz <= 0:
+        raise ValueError(f"meta_data.sample_rate_hz must be > 0. Got: {sample_rate_hz}")
 
     # 2) Magnitude vs time
     mag = np.abs(iq)
 
     # 3) Time axis in nanoseconds
-    dt_ns = 1e9 / float(sample_rate_hz)  # ns per sample
+    dt_ns = 1e9 / sample_rate_hz  # ns per sample
     t_ns = np.arange(mag.size, dtype=np.float64) * dt_ns
 
     # 4) Run findpeaks
-    fp = findpeaks(method=method, whitelist=['peak'])
-    results = fp.fit(mag, x=t_ns)   # x = time in ns
+    fp = findpeaks(method=method, whitelist=["peak"])
+    results = fp.fit(mag, x=t_ns)  # x = time in ns
 
     df = results["df"]
 
@@ -53,7 +47,7 @@ def detect_peaks_in_iq(
 
     # Optional: filter by minimum amplitude
     if min_height is not None:
-        peaks_df = peaks_df[peaks_df["y"] >= min_height]
+        peaks_df = peaks_df[peaks_df["y"] >= float(min_height)]
 
     # Sort by time BEFORE renaming, to be explicit we're sorting on x
     peaks_df = peaks_df.sort_values("x").reset_index(drop=True)

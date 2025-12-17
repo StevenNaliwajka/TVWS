@@ -29,6 +29,6 @@ def filter_singal(metadata, iq):
 
     ## Upper filter
     iq = upper_filter(metadata, iq)
-    plot_amplitude_freq(metadata, iq)
     #plot_freq_time_heatmap(metadata, iq)
     #plot_amplitude_time(metadata, iq)
+    return iq
