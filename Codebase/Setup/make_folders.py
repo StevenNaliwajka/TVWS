@@ -33,7 +33,7 @@ def main() -> int:
 
     create_dir_if_missing(data_dir, "Data")
     create_dir_if_missing(config_dir, "Config")
-
+    create_dir_if_missing(config_dir, "Logs")
     return 0
 
 
