@@ -1,6 +1,11 @@
 {
   "packages": [
-    "matplotlib>=3.8.0",
-    "findpeaks"
+    "findpeaks",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "pmt",
+    "PyQt5",
+    "scipy"
   ]
 }

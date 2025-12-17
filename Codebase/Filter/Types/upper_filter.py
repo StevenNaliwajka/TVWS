@@ -1,7 +1,7 @@
 import numpy as np
 
-from Codebase.Signal.Calculations.compute_tx_offset import compute_tx_offset
-from Codebase.Signal.Filter.apply_fft_mask import apply_fft_mask
+from Codebase.Calculations.compute_tx_offset import compute_tx_offset
+from Codebase.Filter.Scripts.apply_fft_mask import apply_fft_mask
 
 
 def upper_filter(meta_data, iq):

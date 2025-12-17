@@ -3,14 +3,38 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 
-from Codebase.ProcessSignal.load_hackrf_iq import load_hackrf_iq
+
+def _infer_span_mhz(metadata) -> float:
+    """
+    Pick a reasonable +/- span (MHz) that includes baseband, sync, and TX tones,
+    with a small margin, and never exceeds Nyquist.
+    """
+    base = float(metadata.baseband_hz)
+    nyquist_hz = float(metadata.sample_rate_hz) / 2.0
+
+    # Include offsets to known tones (if present)
+    offsets = [0.0]
+    for attr in ("sync_hz", "signal_tx_hz"):
+        if hasattr(metadata, attr):
+            offsets.append(float(getattr(metadata, attr)) - base)
+
+    max_off_hz = max(abs(o) for o in offsets)
+
+    margin_hz = 0.5e6  # 0.5 MHz visual margin
+    span_hz = min(max_off_hz + margin_hz, nyquist_hz)
+
+    # Ensure non-zero span for plotting
+    if span_hz <= 0:
+        span_hz = min(1.0e6, nyquist_hz)
+
+    return span_hz / 1e6
 
 
 def plot_freq_time_heatmap(
-    iq_path: str,
-    sample_rate_hz: float,
-    center_freq_hz: float,
-    span_mhz: float,
+    metadata,
+    iq: np.ndarray,
+    *,
+    span_mhz: float | None = None,
     window_size: int = 4096,
     overlap: float = 100,
     show: bool = True,
@@ -19,49 +43,39 @@ def plot_freq_time_heatmap(
     vmax: float | None = None,
 ):
     """
-    Plot a time-frequency heatmap from a HackRF .iq file.
+    Plot a time-frequency heatmap from IQ data.
 
     X-axis: time (nanoseconds)
     Y-axis: frequency offset from center (MHz), centered at 0
     Color: amplitude (dB)
 
-    Parameters
-    ----------
-    iq_path : str
-        Path to the HackRF .iq file.
-    sample_rate_hz : float
-        Sample rate used when recording (e.g. 10e6 for 10 Msps).
-    center_freq_hz : float
-        RF center frequency in Hz (used for labeling only).
-    span_mhz : float
-        +/- frequency span to display (in MHz). Example: 5 -> show -5 to +5 MHz.
-    window_size : int
-        FFT window size (number of samples per time slice).
-    overlap : float
-        If < 1.0, treated as fractional overlap between windows (0.0 to <1.0).
-        If >= 1.0, treated as hop size in samples (i.e., distance between
-        successive windows). With a fixed hop size and larger window_size,
-        the effective fractional overlap grows automatically.
-    show : bool
-        If True, call plt.show() at the end.
-    save_path : str or None
-        If not None, save the figure to this path.
-    vmin, vmax : float or None
-        Optional fixed color scale limits in dB. If None, they are chosen
-        from data percentiles for better contrast.
+    Required
+    --------
+    metadata : object
+        Must provide:
+            - metadata.sample_rate_hz
+            - metadata.baseband_hz
+        Optionally:
+            - metadata.sync_hz
+            - metadata.signal_tx_hz
+    iq : np.ndarray
+        Complex IQ samples (np.complex64/128), or array convertible to complex.
 
-    Returns
-    -------
-    times_ns : np.ndarray
-        1D array of time values (nanoseconds), length = number of time slices.
-    freqs_sel_mhz : np.ndarray
-        1D array of frequency offsets (MHz).
-    mag_db : np.ndarray
-        2D array of amplitudes in dB, shape = (len(times_ns), len(freqs_sel_mhz)).
-        (Rows = time slices, columns = frequencies.)
+    Optional
+    --------
+    span_mhz : float | None
+        +/- frequency span to display (in MHz). If None, inferred from metadata
+        (sync/tx offsets) and capped at Nyquist.
     """
-    # Load IQ data
-    iq = load_hackrf_iq(iq_path)
+    # Pull from metadata
+    sample_rate_hz = float(metadata.sample_rate_hz)
+    center_freq_hz = float(metadata.baseband_hz)
+
+    # Span selection
+    if span_mhz is None:
+        span_mhz = _infer_span_mhz(metadata)
+
+    # Ensure IQ is a numpy array
     iq = np.asarray(iq)
 
     if iq.size < window_size:
@@ -80,7 +94,6 @@ def plot_freq_time_heatmap(
         hop_size = int(overlap)
         if hop_size <= 0:
             hop_size = 1
-        # Ensure at least 1-sample hop and at most window_size-1
         if hop_size >= window_size:
             hop_size = window_size - 1
 
@@ -95,7 +108,7 @@ def plot_freq_time_heatmap(
     freqs_hz = np.fft.fftfreq(window_size, d=1.0 / sample_rate_hz)
     freqs_hz = np.fft.fftshift(freqs_hz)  # center 0 Hz
 
-    span_hz = span_mhz * 1e6
+    span_hz = float(span_mhz) * 1e6
     mask = np.abs(freqs_hz) <= span_hz
     freqs_sel_hz = freqs_hz[mask]
     freqs_sel_mhz = freqs_sel_hz / 1e6  # offset from center in MHz
@@ -110,18 +123,14 @@ def plot_freq_time_heatmap(
         start = i * hop_size
         segment = iq[start : start + window_size]
 
-        # Apply window
         segment_win = segment * window
 
-        # FFT, shift, magnitude
         spectrum = np.fft.fft(segment_win)
         spectrum = np.fft.fftshift(spectrum)
         mag = np.abs(spectrum)
 
-        # Keep only desired frequency range
         frames[i, :] = mag[mask]
 
-        # Time at center of the window (in seconds)
         center_idx = start + window_size / 2.0
         times_sec[i] = center_idx / float(sample_rate_hz)
 
@@ -138,7 +147,6 @@ def plot_freq_time_heatmap(
         vmax = np.percentile(mag_db, 99)
 
     # --- Build bin edges so axes line up correctly with pcolormesh ---
-    # Assume approximately uniform spacing
     if len(times_ns) > 1:
         dt_ns = float(np.median(np.diff(times_ns)))
     else:
@@ -147,25 +155,20 @@ def plot_freq_time_heatmap(
     if len(freqs_sel_mhz) > 1:
         df_mhz = float(np.median(np.diff(freqs_sel_mhz)))
     else:
-        df_mhz = span_mhz * 2.0
+        df_mhz = float(span_mhz) * 2.0
 
-    time_edges_ns = np.concatenate(
-        ([times_ns[0] - dt_ns / 2.0], times_ns + dt_ns / 2.0)
-    )
-    # Clamp to start at 0
+    time_edges_ns = np.concatenate(([times_ns[0] - dt_ns / 2.0], times_ns + dt_ns / 2.0))
     time_edges_ns[0] = max(time_edges_ns[0], 0.0)
 
-    freq_edges_mhz = np.concatenate(
-        ([freqs_sel_mhz[0] - df_mhz / 2.0], freqs_sel_mhz + df_mhz / 2.0)
-    )
+    freq_edges_mhz = np.concatenate(([freqs_sel_mhz[0] - df_mhz / 2.0], freqs_sel_mhz + df_mhz / 2.0))
 
     # --- Plot ---
     fig, ax = plt.subplots(figsize=(10, 6))
 
     img = ax.pcolormesh(
-        time_edges_ns,        # X edges: time (ns)
-        freq_edges_mhz,       # Y edges: frequency offset (MHz)
-        mag_db.T,             # Color: amplitude (dB), shape (freq, time)
+        time_edges_ns,
+        freq_edges_mhz,
+        mag_db.T,
         shading="auto",
         vmin=vmin,
         vmax=vmax,
@@ -175,7 +178,7 @@ def plot_freq_time_heatmap(
     ax.set_ylabel("Frequency offset from center (MHz)")
     ax.set_title(
         f"Frequency–Time Amplitude\n"
-        f"Center: {center_freq_hz/1e6:.3f} MHz, Span: ±{span_mhz:.3f} MHz"
+        f"Center: {center_freq_hz/1e6:.3f} MHz, Span: ±{float(span_mhz):.3f} MHz"
     )
 
     cbar = fig.colorbar(img, ax=ax)

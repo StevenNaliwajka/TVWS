@@ -1,0 +1,55 @@
+﻿==== 2025-12-16 15:24:58 ====
+CWD: C:\Users\steve\PycharmProjects\TVWS
+CMD: py -3 -X faulthandler -u C:\Users\steve\PycharmProjects\TVWS\Codebase\run.py
+
+Traceback (most recent call last):
+  File "C:\Users\steve\PycharmProjects\TVWS\Codebase\run.py", line 1, in <module>
+    from Codebase.FileIO.load_hackrf_iq import load_hackrf_iq
+ModuleNotFoundError: No module named 'Codebase'
+
+==== 2025-12-16 15:26:17 ====
+CWD: C:\Users\steve\PycharmProjects\TVWS
+CMD: py -3 -X faulthandler -u -m Codebase.run
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\steve\PycharmProjects\TVWS\Codebase\run.py", line 1, in <module>
+    from Codebase.FileIO.load_hackrf_iq import load_hackrf_iq
+  File "C:\Users\steve\PycharmProjects\TVWS\Codebase\FileIO\load_hackrf_iq.py", line 1, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
+
+==== 2025-12-16 15:28:11 ====
+CWD: C:\Users\steve\PycharmProjects\TVWS
+CMD: C:\Users\steve\PycharmProjects\TVWS\.venv\Scripts\python.exe -X faulthandler -u -m Codebase.run
+
+Traceback (most recent call last):
+  File "C:\Users\steve\AppData\Local\Programs\Python\Python39\lib\runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Users\steve\AppData\Local\Programs\Python\Python39\lib\runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\steve\PycharmProjects\TVWS\Codebase\run.py", line 14, in <module>
+    run()
+  File "C:\Users\steve\PycharmProjects\TVWS\Codebase\run.py", line 8, in run
+    iq = load_hackrf_iq(metadata.wired_iq_file_path)
+  File "C:\Users\steve\PycharmProjects\TVWS\Codebase\FileIO\load_hackrf_iq.py", line 7, in load_hackrf_iq
+    raw = np.fromfile(path, dtype=np.int8)
+FileNotFoundError: [Errno 2] No such file or directory: '/Data/Wired/20251119_22-41-36_1763610096_rx1_2ft01616_tx030.iq'
+
+==== 2025-12-16 15:29:05 ====
+CWD: C:\Users\steve\PycharmProjects\TVWS
+CMD: C:\Users\steve\PycharmProjects\TVWS\.venv\Scripts\python.exe -X faulthandler -u -m Codebase.run
+
+==== 2025-12-16 15:29:40 ====
+CWD: C:\Users\steve\PycharmProjects\TVWS
+CMD: C:\Users\steve\PycharmProjects\TVWS\.venv\Scripts\python.exe -X faulthandler -u -m Codebase.run
+
+==== 2025-12-16 15:34:04 ====
+CWD: C:\Users\steve\PycharmProjects\TVWS
+CMD: C:\Users\steve\PycharmProjects\TVWS\.venv\Scripts\python.exe -X faulthandler -u -m Codebase.run
+
+==== 2025-12-16 15:38:23 ====
+CWD: C:\Users\steve\PycharmProjects\TVWS
+CMD: C:\Users\steve\PycharmProjects\TVWS\.venv\Scripts\python.exe -X faulthandler -u -m Codebase.run
+
