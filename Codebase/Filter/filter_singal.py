@@ -14,19 +14,21 @@ from Codebase.Filter.Types.upper_filter import upper_filter
 def filter_singal(metadata, iq):
 
     ## Banpass filter
-    iq = bandpass_filter(metadata, iq)
+
+    #iq = bandpass_filter(metadata, iq)
+    #plot_amplitude_freq(metadata, iq)
+
     #plot_freq_time_heatmap(metadata, iq)
     #plot_amplitude_time(metadata, iq)
-    plot_amplitude_freq(metadata, iq)
 
     ## Lower filter
     iq = lower_filter(metadata, iq)
+    plot_amplitude_freq(metadata, iq)
     #plot_freq_time_heatmap(metadata, iq)
     #plot_amplitude_time(metadata, iq)
-    plot_amplitude_freq(metadata, iq)
 
     ## Upper filter
     iq = upper_filter(metadata, iq)
+    plot_amplitude_freq(metadata, iq)
     #plot_freq_time_heatmap(metadata, iq)
     #plot_amplitude_time(metadata, iq)
-    plot_amplitude_freq(metadata, iq)

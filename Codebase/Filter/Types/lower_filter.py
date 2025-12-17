@@ -6,12 +6,13 @@ from Codebase.Filter.Scripts.apply_fft_mask import apply_fft_mask
 def lower_filter(meta_data, iq):
     """
     Filters OUT everything BELOW a scaled lower edge.
-    Uses meta_data.edge_percentage to move the cutoff slightly inward toward DC,
-    leaving a little “outer leftover” just like your bandpass (notch) logic.
 
-    Example (if min_off ~ -2 MHz):
-        edge_percentage=0.95 -> cutoff becomes -1.9 MHz (less constricting)
-        so we keep freqs >= -1.9 MHz.
+    Uses meta_data.edge_percentage such that values < 1.0 expand the cutoff outward
+    (more negative), e.g.:
+        min_off ~ -2.0 MHz
+        edge_percentage=0.95 -> min_cut = -2.0 / 0.95 ≈ -2.105 MHz (~ -2.1 MHz)
+
+    So we keep freqs >= min_cut (slightly less constricting on the low side).
     """
     fs = float(meta_data.sample_rate_hz)
 
@@ -23,8 +24,8 @@ def lower_filter(meta_data, iq):
             f"meta_data.edge_percentage must be between 0 and 1 (exclusive). Got: {edge_percentage}"
         )
 
-    # Scale the lower edge toward 0 Hz (min_off is typically negative)
-    min_cut = float(min_off) * edge_percentage
+    # min_off is typically negative; dividing by <1 makes it MORE negative (e.g., -2 -> -2.1)
+    min_cut = float(min_off) / edge_percentage
 
     n = iq.size
     freqs = np.fft.fftfreq(n, d=1.0 / fs)  # Hz, relative to baseband (0 Hz)

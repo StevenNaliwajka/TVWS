@@ -7,12 +7,13 @@ from Codebase.Filter.Scripts.apply_fft_mask import apply_fft_mask
 def upper_filter(meta_data, iq):
     """
     Filters OUT everything ABOVE a scaled upper edge.
-    Uses meta_data.edge_percentage to move the cutoff slightly inward toward DC,
-    leaving a little “outer leftover” just like your bandpass (notch) logic.
 
-    Example (if max_off ~ +2 MHz):
-        edge_percentage=0.95 -> cutoff becomes +1.9 MHz (less constricting)
-        so we keep freqs <= +1.9 MHz.
+    Uses meta_data.edge_percentage such that values < 1.0 expand the cutoff outward
+    (more positive), e.g.:
+        max_off ~ +2.0 MHz
+        edge_percentage=0.95 -> max_cut = +2.0 / 0.95 ≈ +2.105 MHz (~ +2.1 MHz)
+
+    So we keep freqs <= max_cut.
     """
     fs = float(meta_data.sample_rate_hz)
 
@@ -24,8 +25,8 @@ def upper_filter(meta_data, iq):
             f"meta_data.edge_percentage must be between 0 and 1 (exclusive). Got: {edge_percentage}"
         )
 
-    # Scale the upper edge toward 0 Hz (max_off is typically positive)
-    max_cut = float(max_off) * edge_percentage
+    # max_off is typically positive; dividing by <1 makes it MORE positive (e.g., +2 -> +2.1)
+    max_cut = float(max_off) / edge_percentage
 
     n = iq.size
     freqs = np.fft.fftfreq(n, d=1.0 / fs)  # Hz, relative to baseband (0 Hz)
