@@ -19,6 +19,7 @@ def detect_peaks_in_iq(
 
     meta_data is an object with attributes like:
       - meta_data.sample_rate_hz
+      - meta_data.qty_peaks   (number of highest peaks to keep)
     """
 
     # Pull sample rate from metadata
@@ -28,6 +29,14 @@ def detect_peaks_in_iq(
     sample_rate_hz = float(meta_data.sample_rate_hz)
     if sample_rate_hz <= 0:
         raise ValueError(f"meta_data.sample_rate_hz must be > 0. Got: {sample_rate_hz}")
+
+    # Pull qty_peaks from metadata
+    if not hasattr(meta_data, "qty_peaks"):
+        raise AttributeError("meta_data must have attribute: qty_peaks")
+
+    qty_peaks = int(meta_data.qty_peaks)
+    if qty_peaks < 0:
+        raise ValueError(f"meta_data.qty_peaks must be >= 0. Got: {qty_peaks}")
 
     # 2) Magnitude vs time
     mag = np.abs(iq)
@@ -49,6 +58,13 @@ def detect_peaks_in_iq(
     if min_height is not None:
         peaks_df = peaks_df[peaks_df["y"] >= float(min_height)]
 
+    # Keep ONLY the N highest peaks by amplitude (y)
+    # (Applied AFTER min_height so you get the highest among the allowed peaks.)
+    if qty_peaks == 0:
+        peaks_df = peaks_df.iloc[0:0].copy()
+    elif len(peaks_df) > qty_peaks:
+        peaks_df = peaks_df.nlargest(qty_peaks, "y").copy()
+
     # Sort by time BEFORE renaming, to be explicit we're sorting on x
     peaks_df = peaks_df.sort_values("x").reset_index(drop=True)
 
@@ -56,9 +72,9 @@ def detect_peaks_in_iq(
     peaks_df = peaks_df.rename(columns={"x": "time_ns", "y": "amplitude"})
 
     # ---- Print peaks sorted by time ----
-    print("\n[detect_peaks_in_iq] Detected peaks (sorted by time):")
-    for _, row in peaks_df.iterrows():
-        print(f"  t = {row['time_ns']:.3f} ns, amplitude = {row['amplitude']:.6f}")
+    #print("\n[detect_peaks_in_iq] Detected peaks (top-N by amplitude, sorted by time):")
+    #for _, row in peaks_df.iterrows():
+    #    print(f"  t = {row['time_ns']:.3f} ns, amplitude = {row['amplitude']:.6f}")
 
     # ---- Plot magnitude with peaks marked ----
     fig, ax = plt.subplots()
@@ -69,7 +85,7 @@ def detect_peaks_in_iq(
             peaks_df["amplitude"],
             marker="x",
             s=40,
-            label="Detected peaks",
+            label=f"Top {min(qty_peaks, len(peaks_df))} peaks",
         )
 
     ax.set_xlabel("Time (ns)")
@@ -79,6 +95,6 @@ def detect_peaks_in_iq(
     ax.grid(True)
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
     return peaks_df

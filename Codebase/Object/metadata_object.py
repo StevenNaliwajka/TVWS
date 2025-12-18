@@ -31,6 +31,15 @@ class MetaDataObj:
         # Store the raw dict too (helpful for debugging / iteration)
         self.data = data
 
+
+        ## relative tof is stored as a 2D array w/
+        ## 10, 3900
+        ## 15, 5999
+        ## ..., ...
+        ## Stores FT, NS
+        self.average_relative_tof = None
+
+
         # Expose every key in metadata.json as an attribute
         for k, v in data.items():
             setattr(self, k, v)
