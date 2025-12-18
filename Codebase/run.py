@@ -7,6 +7,7 @@ from Codebase.FileIO.load_hackrf_iq import load_hackrf_iq
 
 from Codebase.Filter.filter_singal import filter_signal
 from Codebase.Object.metadata_object import MetaDataObj
+from Codebase.Plot.plot_amplitude_freq import plot_amplitude_freq
 from Codebase.Processing.compute_relative_tof import compute_relative_tof
 from Codebase.Processing.compute_tof import compute_tof
 from Codebase.Processing.process_signal import process_signal
@@ -43,9 +44,9 @@ def run():
     #metadata = MetaDataObj()
     #iq = load_hackrf_iq(metadata.selected_iq_path)
     #filtered_iq = filter_singal(metadata, iq)
-    #plot_freq_time_heatmap(metadata, filtered_iq)
+    #p#lot_freq_time_heatmap(metadata, filtered_iq)
     #plot_amplitude_time(metadata, filtered_iq)
-    #plot_amplitude_freq(metadata, filtered_iq)
+    #plot_amplitude_freq(metadata, wired_signal)
 
     #detect_peaks_in_iq(metadata, filtered_iq)
 
