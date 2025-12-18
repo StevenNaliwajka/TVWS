@@ -1,3 +1,4 @@
+import numpy as np
 from pathlib import Path
 
 
@@ -6,6 +7,7 @@ from Codebase.FileIO.load_hackrf_iq import load_hackrf_iq
 
 from Codebase.Filter.filter_singal import filter_signal
 from Codebase.Object.metadata_object import MetaDataObj
+from Codebase.Processing.compute_relative_tof import compute_relative_tof
 from Codebase.Processing.compute_tof import compute_tof
 from Codebase.Processing.process_signal import process_signal
 
@@ -30,9 +32,13 @@ def run():
             compute_tof(metadata, signal)
             process_signal(metadata, signal, wired_signal)
             tof_per_ft = signal.tof_air/signal.distance
-            print(f"Signal TOF Foot({signal.distance})= {tof_per_ft}")
+            #print(f"Signal TOF per Foot({signal.distance:.2f}FT)= {tof_per_ft} NS")
 
-
+    compute_relative_tof(metadata, signal_grid)
+    for ft, ns in metadata.average_relative_tof:
+        ft_str = f"{int(round(ft))}" if np.isfinite(ft) else "?"
+        ns_str = "N/A" if not np.isfinite(ns) else f"{int(round(ns)):,}"
+        print(f"{ft_str} Ft, {ns_str} NS Per Ft Over Air")
 
     #metadata = MetaDataObj()
     #iq = load_hackrf_iq(metadata.selected_iq_path)

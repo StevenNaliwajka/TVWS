@@ -1,4 +1,4 @@
-def compute_tof_difference(tof_rx_1, tof_rx_2, a, b, c, d):
+def compute_tof_difference_1(tof_rx_1, tof_rx_2, a, b, c, d):
     ## COMPUTES TOF OF SIMULATION.
     ## SEE ATTACHED DIAGRAM sys_diagram#1.img
 
@@ -31,4 +31,4 @@ if __name__ == "__main__":
     b = 1
     c = 10
     d = 50
-    compute_tof_difference(tof_rx_1,tof_rx_2,a,b,c,d)
+    compute_tof_difference_1(tof_rx_1, tof_rx_2, a, b, c, d)
