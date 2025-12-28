@@ -10,6 +10,7 @@ Performs 3 filters on the signal in series.
 - Banpass Filter
 - Lowpass Filter
 - Upper Filter
+ezpz
 
 
 ## RUNNING - WINDOWS:
