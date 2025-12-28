@@ -1,0 +1,61 @@
+def tof_calculation_1(tof_rx_1, tof_rx_2, a, b, c, d):
+    ## COMPUTES TOF OF SIMULATION.
+    ## SEE ATTACHED DIAGRAM sys_diagram#1.img
+
+    ## LENGTH
+    # Cable Length
+    a_len = a
+    b_len = b
+    rx_1_excess_len = a_len + b_len
+    # Cable Length
+    c_len = c
+    d_len = d
+    rx_2_excess_len = c_len + d_len + a_len
+
+    ## TIME
+    ## 1s = 1.5ns
+    ns_per_ft = 1.5
+    rx_1_excess_time = rx_1_excess_len * ns_per_ft
+    rx_2_excess_time = rx_2_excess_len * ns_per_ft
+
+    rx_wired_zeroed = tof_rx_1 - rx_1_excess_time
+    # print(f"RX#1 TOF (Zeroed): {rx_wired_zeroed}")
+    rx_air_tof = tof_rx_2 - rx_2_excess_time
+    # print(f"OverTheAirTOF: {rx_air_tof}")
+
+    return rx_wired_zeroed, rx_air_tof
+
+if __name__ == "__main__":
+    a = 3
+    b = 1
+    c = 10
+    d = 50
+
+    tof_wired = 59.67
+    tof_25_air = 61.80
+    tof_35_air = 1
+    tof_50_air = 1
+
+
+
+    zeroed_25, tof_25_air = tof_calculation_1(tof_wired,tof_25_air,a,b,c,d)
+    zeroed_35, tof_35_air = tof_calculation_1(tof_wired, tof_35_air, a, b, c, d)
+    zeroed_50, tof_50_air = tof_calculation_1(tof_wired, tof_50_air, a, b, c, d)
+
+    experiment_1 = tof_25_air / 25
+    experiment_2 = tof_35_air / 35
+    experiment_3 = tof_50_air / 50
+
+# Nicely formatted printout for all 3 cases
+cases = [
+    ("25", 25, zeroed_25, tof_25_air, experiment_1),
+    ("35", 35, zeroed_35, tof_35_air, experiment_2),
+    ("50", 50, zeroed_50, tof_50_air, experiment_3),
+]
+
+for label, dist, zeroed, tof_air, exp_val in cases:
+    print(f"--- {label} unit case ---")
+    print(f"Zeroed TOF:     {zeroed:.6e}")
+    print(f"TOF in air:     {tof_air:.6e}")
+    print(f"TOF / {dist}:   {exp_val:.6e}")
+    print()
