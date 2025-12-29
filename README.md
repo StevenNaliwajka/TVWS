@@ -10,7 +10,6 @@ Performs 3 filters on the signal in series.
 - Banpass Filter
 - Lowpass Filter
 - Upper Filter
-ezpz
 
 
 ## RUNNING - WINDOWS:
@@ -22,3 +21,5 @@ ezpz
 - Update "Config/metadata.json"
 
 - Can be run by clicking on "run.bat"
+
+test
