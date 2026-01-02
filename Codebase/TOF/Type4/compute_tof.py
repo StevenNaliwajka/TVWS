@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from Codebase.Processing.detect_peaks_in_iq import detect_peaks_in_iq
+from Codebase.PeakDetection.Type1.detect_peaks_in_iq import detect_peaks_in_iq
 
 
 def compute_tof(meta_data: Any, signal: Any) -> Optional[float]:

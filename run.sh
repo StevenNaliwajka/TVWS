@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 VENV_DIR="$PROJECT_ROOT/.venv"
 PYTHON_BIN="$VENV_DIR/bin/python"
-SCRIPT="$PROJECT_ROOT/Codebase/run.py"
+SCRIPT="$PROJECT_ROOT/Codebase/run_2.py"
 
 # Ensure venv exists
 if [[ ! -d "$VENV_DIR" ]]; then
