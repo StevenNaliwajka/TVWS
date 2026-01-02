@@ -1,5 +1,5 @@
 import numpy as np
-from Codebase.Processing.compute_tx_offset import compute_tx_offset
+from Codebase.Filter.Scripts.compute_tx_offset import compute_tx_offset
 from Codebase.Filter.Scripts.apply_fft_mask import apply_fft_mask
 
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from Codebase.FileIO.collect_all_data import load_signal_grid
 
 from Codebase.Object.metadata_object import MetaDataObj
+from Codebase.PeakDetection.Type1.detect_peaks_in_iq import detect_peaks_in_iq
 from Codebase.TOF.Type3.compute_relative_tof import compute_relative_tof
 from Codebase.TOF.Type4.compute_tof import compute_tof
 from Codebase.process_signal import process_signal
@@ -26,7 +27,7 @@ def run():
             # Optional: skip processing wired against itself (remove if you want it included)
             if signal is wired_signal:
                 continue
-
+            detect_peaks_in_iq(metadata, signal)
             compute_tof(metadata, signal)
             process_signal(metadata, signal, wired_signal)
             tof_per_ft = signal.tof_air/signal.distance
@@ -41,7 +42,7 @@ def run():
     #metadata = MetaDataObj()
     #iq = load_hackrf_iq(metadata.selected_iq_path)
     #filtered_iq = filter_singal(metadata, iq)
-    #plot_freq_time_heatmap(metadata, filtered_iq)
+    #p#lot_freq_time_heatmap(metadata, filtered_iq)
     #plot_amplitude_time(metadata, filtered_iq)
     #plot_amplitude_freq(metadata, wired_signal)
 

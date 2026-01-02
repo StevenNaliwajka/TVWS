@@ -1,9 +1,7 @@
 from Codebase.Filter.filter_singal import filter_signal
-from Codebase.Processing.compute_tof import compute_tof
+from Codebase.TOF.Type4.compute_tof import compute_tof
 
-
-from Codebase.Processing.compute_tof_difference_1 import compute_tof_difference_1
-from Codebase.Processing.compute_tof_difference_2 import compute_tof_difference_2
+from Codebase.TOF.Type2.compute_tof_difference_2 import compute_tof_difference_2
 
 
 def process_signal(metadata, signal, wired_signal):
