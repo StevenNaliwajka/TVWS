@@ -10,6 +10,13 @@ from Codebase.TOF.Type3.compute_relative_tof import compute_relative_tof
 from Codebase.TOF.Type4.compute_tof import compute_tof
 from Codebase.process_signal import process_signal
 
+
+'''
+Current Wants:
+    add file explorer functionality to remove need for copying file name
+    research possible filtering techniques to improve edge detection
+    Get some sleep
+'''
 def Uuga():
     # HackRF sample rate(20 MHz)
     fs = 20e6
