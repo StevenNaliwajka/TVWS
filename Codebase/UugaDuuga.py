@@ -15,6 +15,9 @@ from Codebase.process_signal import process_signal
 Current Wants:
     add file explorer functionality to remove need for copying file name
     research possible filtering techniques to improve edge detection
+    make it iterable over entire data folder
+    add excel output file that tracks ToF to specified folder of certain transmission distances
+    automate the magnitude and cluster distance variables
     Get some sleep
 '''
 def Uuga():
