@@ -268,7 +268,7 @@ def Uuga():
     for s in range(0, len(CalcToFArray)):
         print("The time of flight for signal", s + 1 ,"is", CalcToFArray[s])
 
-    CATCHER = 0
+    CATCHERdebug = 0
 
     # plt.subplot(1, 2, 1)
 
