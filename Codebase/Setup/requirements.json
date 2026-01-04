@@ -5,7 +5,7 @@
     "numpy",
     "pandas",
     "pmt",
-    "PyQt5",
+    "sshpass",
     "scipy"
   ]
 }
