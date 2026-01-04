@@ -2,7 +2,7 @@
 
 % Define file name and parameters
 data_dir = 'C:\Users\steve\PycharmProjects\TVWS\Data';
-filename = fullfile(data_dir, '2026-01-04T23-50-52_8335_capture_1.iq');  % Full path to the IQ capture
+filename = fullfile(data_dir, '2026-01-04T23-54-37_5727_capture_1.iq');  % Full path to the IQ capture
 fs = 20e6;  % HackRF sample rate (20 MHz)
 fc = 491e6;  % Center frequency (MHz for reference)
 
@@ -34,7 +34,7 @@ fclose(fid);
 I = raw_data(1:2:end);
 Q = raw_data(2:2:end);
 IQ_data = complex(double(I), double(Q));
-%IQ_data = IQ_data - mean(IQ_data);  % DC offset removal
+IQ_data = IQ_data - mean(IQ_data);  % DC offset removal
 tt = 1:length(IQ_data);
 % --- Bandpass Filter Design ---
 %f_low = 488e6;  % Lower edge of passband
