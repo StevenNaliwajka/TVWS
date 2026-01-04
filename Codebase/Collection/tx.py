@@ -155,7 +155,7 @@ def main() -> int:
     ap.add_argument("--lna", type=int, default=16)
     ap.add_argument("--vga", type=int, default=16)
     ap.add_argument("--amp", type=int, default=28)
-    ap.add_argument("--pulse", default="/opt/TVWS/Codebase/Collection/zc.iq")
+    ap.add_argument("--pulse", default="/opt/TVWS/Codebase/Collection/pilot.iq")
     ap.add_argument("--pass", dest="password", default="Kennesaw123")
     ap.add_argument("--save-dir", default=str(Path.home() / "sdr"))
     ap.add_argument("--safety-margin", type=float, default=1.0)
