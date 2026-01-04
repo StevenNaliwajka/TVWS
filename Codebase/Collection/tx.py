@@ -125,8 +125,26 @@ def start_remote_rx_with_handshake(
     return proc, ready_event, t
 
 
-def run_local_tx(pulse_iq: str, freq: int, sr: int, amp: int) -> int:
-    cmd = ["hackrf_transfer", "-t", pulse_iq, "-f", str(freq), "-s", str(sr), "-x", str(amp)]
+def run_local_tx(
+    pulse_iq: str,
+    freq: int,
+    sr: int,
+    amp: int,
+    rf_amp: bool,
+    antenna_power: bool,
+) -> int:
+    # hackrf_transfer:
+    #   -a 1 enables the on-board RF amplifier (~11 dB)
+    #   -p 1 enables antenna port power / bias-tee (3.3V). Only use if needed.
+    cmd = [
+        "hackrf_transfer",
+        "-t", pulse_iq,
+        "-f", str(freq),
+        "-s", str(sr),
+        "-x", str(amp),
+        "-a", "1" if rf_amp else "0",
+        "-p", "1" if antenna_power else "0",
+    ]
     print(f"[TX] Transmitting: {' '.join(cmd)}")
     try:
         p = subprocess.run(cmd, check=False)
@@ -161,6 +179,21 @@ def main() -> int:
     ap.add_argument("--rx2-lna", type=int, default=None, help="Override RX2 LNA gain (else uses --lna)")
     ap.add_argument("--rx2-vga", type=int, default=None, help="Override RX2 VGA gain (else uses --vga)")
     ap.add_argument("--amp", type=int, default=45)
+
+    # HackRF hardware toggles
+    # - RF amp (-a) is the on-board ~11 dB RF amplifier (works for RX and TX)
+    ap.add_argument("--rf-amp", dest="rf_amp", action="store_true",
+                    help="Enable HackRF RF amp (adds -a 1 to hackrf_transfer). Default: enabled")
+    ap.add_argument("--no-rf-amp", dest="rf_amp", action="store_false",
+                    help="Disable HackRF RF amp (adds -a 0 to hackrf_transfer)")
+    ap.set_defaults(rf_amp=True)
+
+    # - Antenna port power / bias-tee (-p). Only enable this if you need to power an external LNA.
+    ap.add_argument("--antenna-power", dest="antenna_power", action="store_true",
+                    help="Enable HackRF antenna port power / bias-tee (adds -p 1). Default: disabled")
+    ap.add_argument("--no-antenna-power", dest="antenna_power", action="store_false",
+                    help="Disable HackRF antenna port power / bias-tee (adds -p 0)")
+    ap.set_defaults(antenna_power=False)
     ap.add_argument("--pulse", default="/opt/TVWS/Codebase/Collection/pilot.iq")
     ap.add_argument("--pass", dest="password", default="Kennesaw123")
     ap.add_argument("--save-dir", default=str(Path.home() / "sdr"))
@@ -260,7 +293,7 @@ def main() -> int:
 
     # ---- Trigger TX immediately after both are READY ----
     print(f"[TX] [{timestamp}] Both RX READY. Triggering TX now...")
-    tx_rc = run_local_tx(args.pulse, args.freq, args.sr, args.amp)
+    tx_rc = run_local_tx(args.pulse, args.freq, args.sr, args.amp, rf_amp=args.rf_amp, antenna_power=args.antenna_power)
     if tx_rc != 0:
         print(f"[TX][ERROR] TX hackrf_transfer exited with {tx_rc}", file=sys.stderr)
 
