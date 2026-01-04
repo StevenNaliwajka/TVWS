@@ -38,7 +38,7 @@ Options:
 Examples:
   ./collect.sh
   ./collect.sh --runs 100 --data-root /opt/TVWS/Data
-  ./collect.sh --runs 20 -- --freq 520000000 --sr 20000000 --nsamples 25000 --lna 16 --vga 16 --amp 28
+  ./collect.sh --runs 20 -- --freq 520000000 --sr 20000000 --nsamples 25000 --lna 16 --vga 16 --ready-timeout 0.5 --hw-trigger
 EOF
 }
 
@@ -59,7 +59,6 @@ done
 # ---- Validate paths ----
 if [[ ! -d "$VENV_DIR" ]]; then
   echo "[ERROR] .venv not found at: $VENV_DIR" >&2
-  echo "        Create it first (example): python3 -m venv .venv" >&2
   exit 1
 fi
 
@@ -80,7 +79,6 @@ fi
 
 # ---- Helpers ----
 utc_now_compact() {
-  # Example: 2026-01-04T18-12-33_1234
   local ns
   ns="$(date -u +%N | cut -c1-4)"
   echo "$(date -u +%Y-%m-%dT%H-%M-%S)_${ns}"
@@ -120,6 +118,14 @@ sha256_or_empty() {
   fi
 }
 
+# Make a JSON array from a bash array (safe)
+json_array_from_args() {
+  "$PY" - <<'PY' "$@"
+import json, sys
+print(json.dumps(sys.argv[1:]))
+PY
+}
+
 # ---- Session folder ----
 SESSION_TS="$(utc_now_compact)"
 SESSION_DIR="$DATA_ROOT/${PREFIX}_${SESSION_TS}"
@@ -133,13 +139,24 @@ echo "[collect.sh] Session dir   : $SESSION_DIR"
 echo "[collect.sh] Runs          : $RUNS"
 echo "[collect.sh] tx.py args    : ${TX_ARGS[*]:-(none)}"
 
-# Write session.json
+# Build JSON for tx args (fixes your bad substitution)
+TX_ARGS_JSON="$(json_array_from_args "${TX_ARGS[@]}")"
+
+# Write session.json (pass data via env; quoted heredoc prevents bash expansion)
 GIT_JSON="$(git_info_json)"
 TX_SHA="$(sha256_or_empty "$TX_PY")"
 COLLECT_SHA="$(sha256_or_empty "$PROJECT_ROOT/collect.sh")"
 
-"$PY" - <<PY > "$SESSION_DIR/session.json"
-import json, os, platform, subprocess, time
+export SESSION_ID
+SESSION_ID="$(basename "$SESSION_DIR")"
+
+export PROJECT_ROOT DATA_ROOT VENV_PY TX_PY TX_SHA COLLECT_SHA RUNS SLEEP_BETWEEN
+export TX_ARGS_JSON GIT_JSON
+
+VENV_PY="$PY"
+
+"$PY" - <<'PY' > "$SESSION_DIR/session.json"
+import json, os, platform, subprocess
 from datetime import datetime, timezone
 
 def cmd_out(cmd):
@@ -148,25 +165,28 @@ def cmd_out(cmd):
     except Exception:
         return ""
 
+tx_args = json.loads(os.environ.get("TX_ARGS_JSON", "[]"))
+git_info = json.loads(os.environ.get("GIT_JSON", '{"is_repo": false}'))
+
 data = {
-  "session_id": os.path.basename(r"$SESSION_DIR"),
+  "session_id": os.environ["SESSION_ID"],
   "created_utc": datetime.now(timezone.utc).isoformat(),
-  "project_root": r"$PROJECT_ROOT",
-  "venv_python": r"$PY",
-  "tx_py": r"$TX_PY",
-  "tx_py_sha256": r"$TX_SHA",
-  "collect_sh_sha256": r"$COLLECT_SHA",
-  "data_root": r"$DATA_ROOT",
-  "runs_planned": int(r"$RUNS"),
-  "sleep_between_s": float(r"$SLEEP_BETWEEN"),
-  "tx_args": ${json.dumps(TX_ARGS)},
+  "project_root": os.environ["PROJECT_ROOT"],
+  "venv_python": os.environ["VENV_PY"],
+  "tx_py": os.environ["TX_PY"],
+  "tx_py_sha256": os.environ.get("TX_SHA",""),
+  "collect_sh_sha256": os.environ.get("COLLECT_SHA",""),
+  "data_root": os.environ["DATA_ROOT"],
+  "runs_planned": int(os.environ["RUNS"]),
+  "sleep_between_s": float(os.environ["SLEEP_BETWEEN"]),
+  "tx_args": tx_args,
   "host": {
     "hostname": cmd_out(["hostname"]),
     "platform": platform.platform(),
     "uname": platform.uname()._asdict(),
     "python_version": platform.python_version(),
   },
-  "git": $GIT_JSON,
+  "git": git_info,
 }
 print(json.dumps(data, indent=2, sort_keys=True))
 PY
@@ -187,11 +207,10 @@ for ((i=1; i<=RUNS; i++)); do
   echo "[collect.sh] Run dir: $RUN_DIR"
   echo "[collect.sh] Start  : $START_UTC"
 
-  # Important: run from inside RUN_DIR so rx1.log/rx2.log land inside it
+  # Run from inside RUN_DIR so rx1.log/rx2.log land inside it (tx.py writes those by relative path)
   pushd "$RUN_DIR" >/dev/null
 
   set +e
-  # Capture stdout/stderr but preserve the real return code
   "$PY" "$TX_PY" --save-dir "$RUN_DIR" "${TX_ARGS[@]}" 2>&1 | tee "tx_stdout.log"
   TX_RC=${PIPESTATUS[0]}
   set -e
@@ -202,12 +221,18 @@ for ((i=1; i<=RUNS; i++)); do
   # Collect list of capture files (if any)
   CAPTURES=()
   while IFS= read -r -d '' f; do CAPTURES+=("$(basename "$f")"); done < <(find "$RUN_DIR" -maxdepth 1 -type f -name "*_capture_*.iq" -print0 2>/dev/null || true)
+  CAPTURES_JSON="$(json_array_from_args "${CAPTURES[@]}")"
 
-  # Write run.json (includes exit code + captures found)
-  TX_SHA_RUN="$(sha256_or_empty "$TX_PY")"
-  "$PY" - <<PY > "$RUN_DIR/run.json"
+  # Write run.json (again: pass JSON via env)
+  export RUN_ID RUN_DIR START_UTC END_UTC TX_RC CAPTURES_JSON
+  RUN_ID="$RUN_ID"
+  RUN_DIR="$RUN_DIR"
+  START_UTC="$START_UTC"
+  END_UTC="$END_UTC"
+  TX_RC="$TX_RC"
+
+  "$PY" - <<'PY' > "$RUN_DIR/run.json"
 import json, os, platform, subprocess
-from datetime import datetime, timezone
 
 def cmd_out(cmd):
     try:
@@ -215,16 +240,18 @@ def cmd_out(cmd):
     except Exception:
         return ""
 
+tx_args = json.loads(os.environ.get("TX_ARGS_JSON", "[]"))
+captures = json.loads(os.environ.get("CAPTURES_JSON", "[]"))
+
 data = {
-  "run_id": r"$RUN_ID",
-  "session_id": os.path.basename(r"$SESSION_DIR"),
-  "started_utc": r"$START_UTC",
-  "ended_utc": r"$END_UTC",
-  "exit_code": int(r"$TX_RC"),
-  "run_dir": r"$RUN_DIR",
-  "command": [r"$PY", r"$TX_PY", "--save-dir", r"$RUN_DIR"] + ${json.dumps(TX_ARGS)},
-  "captures": ${json.dumps(CAPTURES)},
-  "tx_py_sha256": r"$TX_SHA_RUN",
+  "run_id": os.environ["RUN_ID"],
+  "session_id": os.environ["SESSION_ID"],
+  "started_utc": os.environ["START_UTC"],
+  "ended_utc": os.environ["END_UTC"],
+  "exit_code": int(os.environ["TX_RC"]),
+  "run_dir": os.environ["RUN_DIR"],
+  "command": [os.environ["VENV_PY"], os.environ["TX_PY"], "--save-dir", os.environ["RUN_DIR"]] + tx_args,
+  "captures": captures,
   "host": {
     "hostname": cmd_out(["hostname"]),
     "platform": platform.platform(),
@@ -247,7 +274,6 @@ PY
     echo "[collect.sh] $RUN_ID OK"
   fi
 
-  # Optional cooldown between runs
   if [[ "$(printf '%.6f' "$SLEEP_BETWEEN")" != "0.000000" ]]; then
     sleep "$SLEEP_BETWEEN"
   fi
