@@ -23,7 +23,7 @@ FAIL_FAST=0
 # Default tx.py args (used only if no tx args are provided on the collect.sh command line)
 # This implements:
 #   python3 tx.py --rf-amp --lna 32 --vga 32 --rx2-lna 16 --rx2-vga 16
-DEFAULT_TX_ARGS=(--rf-amp --lna 32 --vga 32 --rx2-lna 16 --rx2-vga 16)
+DEFAULT_TX_ARGS=(--rf-amp --lna 40 --vga 32 --rx2-lna 16 --rx2-vga 16)
 
 # Everything not recognized here will be passed through to tx.py
 TX_ARGS=()
