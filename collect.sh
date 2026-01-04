@@ -20,6 +20,11 @@ DATA_ROOT="$PROJECT_ROOT/Data"
 SLEEP_BETWEEN="0"
 FAIL_FAST=0
 
+# Default tx.py args (used only if no tx args are provided on the collect.sh command line)
+# This implements:
+#   python3 tx.py --lna 32 --vga 32 --rx2-lna 16 --rx2-vga 16
+DEFAULT_TX_ARGS=(--lna 32 --vga 32 --rx2-lna 16 --rx2-vga 16)
+
 # Everything not recognized here will be passed through to tx.py
 TX_ARGS=()
 
@@ -55,6 +60,12 @@ while [[ $# -gt 0 ]]; do
     *)             TX_ARGS+=("$1"); shift ;;
   esac
 done
+
+
+# ---- Apply default tx.py args (only when none were supplied) ----
+if [[ ${#TX_ARGS[@]} -eq 0 ]]; then
+  TX_ARGS=("${DEFAULT_TX_ARGS[@]}")
+fi
 
 # ---- Validate paths ----
 if [[ ! -d "$VENV_DIR" ]]; then

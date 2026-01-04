@@ -106,8 +106,8 @@ def main() -> int:
     ap.add_argument("--freq", type=int, required=True, help="Center frequency (Hz)")
     ap.add_argument("--sr", type=int, required=True, help="Sample rate (Hz)")
     ap.add_argument("--nsamples", type=int, required=True, help="Number of samples")
-    ap.add_argument("--lna", type=int, default=20, help="LNA gain (hackrf_transfer -l). Default 16")
-    ap.add_argument("--vga", type=int, default=20, help="VGA gain (hackrf_transfer -g). Default 16")
+    ap.add_argument("--lna", type=int, default=32, help="LNA gain (hackrf_transfer -l). Default 16")
+    ap.add_argument("--vga", type=int, default=32, help="VGA gain (hackrf_transfer -g). Default 16")
     ap.add_argument("--hw-trigger", action="store_true", help="Wait for hardware trigger (-H)")
 
     # Key: TX will wait for READY; we try to detect it quickly, but fallback after this timeout.
@@ -134,7 +134,7 @@ def main() -> int:
         nsamples=args.nsamples,
         lna=args.lna,
         vga=args.vga,
-        hw_trigger=True,
+        hw_trigger=args.hw_trigger,
         ready_timeout_s=args.ready_timeout,
         ready_patterns=ready_regexes,
     )

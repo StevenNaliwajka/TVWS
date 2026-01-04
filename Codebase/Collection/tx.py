@@ -18,6 +18,8 @@ class RxHost:
     remote_rx_py: str
     remote_outfile: str
     local_log: str
+    lna_override: Optional[int] = None
+    vga_override: Optional[int] = None
 
 
 def utc_timestamp_for_filename() -> str:
@@ -154,6 +156,10 @@ def main() -> int:
     ap.add_argument("--nsamples", type=int, default=7_000)
     ap.add_argument("--lna", type=int, default=32)
     ap.add_argument("--vga", type=int, default=32)
+    ap.add_argument("--rx1-lna", type=int, default=None, help="Override RX1 LNA gain (else uses --lna)")
+    ap.add_argument("--rx1-vga", type=int, default=None, help="Override RX1 VGA gain (else uses --vga)")
+    ap.add_argument("--rx2-lna", type=int, default=None, help="Override RX2 LNA gain (else uses --lna)")
+    ap.add_argument("--rx2-vga", type=int, default=None, help="Override RX2 VGA gain (else uses --vga)")
     ap.add_argument("--amp", type=int, default=45)
     ap.add_argument("--pulse", default="/opt/TVWS/Codebase/Collection/pilot.iq")
     ap.add_argument("--pass", dest="password", default="Kennesaw123")
@@ -191,6 +197,8 @@ def main() -> int:
         remote_rx_py="/opt/TVWS/Codebase/Collection/rx_1.py",
         remote_outfile="/home/pi1/capture_1.iq",
         local_log="rx1.log",
+        lna_override=args.rx1_lna,
+        vga_override=args.rx1_vga,
     )
     rx2 = RxHost(
         name="rx2",
@@ -199,6 +207,8 @@ def main() -> int:
         remote_rx_py="/opt/TVWS/Codebase/Collection/rx_2.py",
         remote_outfile="/home/pi2/capture_2.iq",
         local_log="rx2.log",
+        lna_override=args.rx2_lna,
+        vga_override=args.rx2_vga,
     )
     rx_hosts = [rx1, rx2]
 
@@ -209,14 +219,17 @@ def main() -> int:
     ready_events = []
 
     for rx in rx_hosts:
+        lna = rx.lna_override if rx.lna_override is not None else args.lna
+        vga = rx.vga_override if rx.vga_override is not None else args.vga
+
         proc, ev, th = start_remote_rx_with_handshake(
             password=args.password,
             rx=rx,
             freq=args.freq,
             sr=args.sr,
             nsamples=args.nsamples,
-            lna=args.lna,
-            vga=args.vga,
+            lna=lna,
+            vga=vga,
             hw_trigger=hw_trigger,
             ready_timeout_s=args.rx_ready_timeout,
         )

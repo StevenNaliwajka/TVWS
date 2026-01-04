@@ -134,7 +134,7 @@ def main() -> int:
         nsamples=args.nsamples,
         lna=args.lna,
         vga=args.vga,
-        hw_trigger=True,
+        hw_trigger=args.hw_trigger,
         ready_timeout_s=args.ready_timeout,
         ready_patterns=ready_regexes,
     )
