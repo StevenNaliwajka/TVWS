@@ -154,7 +154,7 @@ def main() -> int:
     ap.add_argument("--nsamples", type=int, default=7_000)
     ap.add_argument("--lna", type=int, default=30)
     ap.add_argument("--vga", type=int, default=30)
-    ap.add_argument("--amp", type=int, default=35)
+    ap.add_argument("--amp", type=int, default=45)
     ap.add_argument("--pulse", default="/opt/TVWS/Codebase/Collection/pilot.iq")
     ap.add_argument("--pass", dest="password", default="Kennesaw123")
     ap.add_argument("--save-dir", default=str(Path.home() / "sdr"))
