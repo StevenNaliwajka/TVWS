@@ -10,6 +10,13 @@ from Codebase.TOF.Type3.compute_relative_tof import compute_relative_tof
 from Codebase.TOF.Type4.compute_tof import compute_tof
 from Codebase.process_signal import process_signal
 
+import tkinter as tk
+from tkinter import filedialog
+from pathlib import Path
+
+import argparse
+import csv
+
 
 '''
 Current Wants:
@@ -20,171 +27,118 @@ Current Wants:
     automate the magnitude and cluster distance variables
     Get some sleep
 '''
-def Uuga():
-    # HackRF sample rate(20 MHz)
-    fs = 20e6
 
-    # Center frequency(MHz for reference)
-    fc = 491e6
 
-    metadata = MetaDataObj()
-    data_dir = Path(__file__).resolve().parents[1] / "Data"
-    data_dir1 = data_dir / "10 Feet" / "20251119_23-24-44_1763612684_rx2_10ft14030_tx044.iq"
-    signal_grid = load_signal_grid(data_dir)
 
-    with open(data_dir1,'r') as fid:
-        raw_data = np.fromfile(fid, dtype=np.int8)
+def parse_args_with_prompts():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=str, default=None, help="Root directory to process")
+    parser.add_argument("--minimumMag", type=float, default=None, help="Min peak height threshold")
+    parser.add_argument("--cluster", type=int, default=None, help="Min points to qualify as a cluster")
+    parser.add_argument("--clusterWeedOutDist", type=float, default=None, help="Max spacing within a cluster")
 
+    args = parser.parse_args()
+
+    # Prompt if missing (keeps old behavior but interactive)
+    if args.minimumMag is None:
+        val = input("Enter minimumMag (default 2): ").strip()
+        args.minimumMag = float(val) if val else 2.0
+
+    if args.cluster is None:
+        val = input("Enter cluster (default 7): ").strip()
+        args.cluster = int(val) if val else 7
+
+    if args.clusterWeedOutDist is None:
+        val = input("Enter clusterWeedOutDist (default 3.5): ").strip()
+        args.clusterWeedOutDist = float(val) if val else 3.5
+
+    root_dir = Path(args.root) if args.root else None
+    return root_dir, args.minimumMag, args.cluster, args.clusterWeedOutDist
+
+def get_root_dir():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=str, default=None, help="Root directory to process")
+    args = parser.parse_args()
+
+    if args.root:
+        return Path(args.root)
+    return None
+
+def choose_folder_gui(title="Select a folder to process"):
+    root = tk.Tk()
+    root.withdraw()          # hide the main tkinter window
+    root.attributes("-topmost", True)  # bring dialog to front
+
+    folder = filedialog.askdirectory(title=title)
+    root.destroy()
+
+    return Path(folder) if folder else None
+
+def process_one_iq_file(iq_path: Path,
+                        fs=20e6,
+                        wn=(0.005, 0.3),
+                        minimumMag=2,
+                        cutoff_time=50,
+                        cluster=7,
+                        clusterWeedOutDist=3.5,
+                        timeFilter=350,
+                        timeBetweenClusters=50,
+                        gap_for_edges=5):
+    """
+    Processes a single .iq file and returns:
+      - tt, IQ_data
+      - clusterLocsArray, clusterPeaksArray (red points)
+      - ToFtimesArray, ToFpeaksArray (blue edge points)
+      - CalcToFArray (ToF per pulse)
+    """
+
+    # --- IMPORTANT: open IQ file as BINARY ---
+    raw_data = np.fromfile(iq_path, dtype=np.int8)
+    if raw_data.size < 4:
+        return None
+
+    # Interleaved IQ
     I = raw_data[0::2]
-
-    # MATLAB: raw_data(2:2:end)
     Q = raw_data[1::2]
-
-    # MATLAB: complex(double(I), double(Q))
     IQ_data = I.astype(np.float64) + 1j * Q.astype(np.float64)
 
-    # MATLAB: IQ_data = IQ_data - mean(IQ_data)
+    # DC offset removal
     IQ_data = IQ_data - np.mean(IQ_data)
 
-    # MATLAB: tt = (1:length(IQ_data))/20
+    # Keep your original time axis definition (matches your prior code)
     tt = np.arange(1, len(IQ_data) + 1) / 20.0
 
-    # MATLAB: wn = [0.005, 0.3];  % normalized (0..1), where 1 = Nyquist
-    wn = [0.005, 0.3]
-
-    # MATLAB: [b, a] = butter(4, wn, 'bandpass');
+    # Butter bandpass + filtfilt (MATLAB-style)
     b, a = butter(N=4, Wn=wn, btype='bandpass')
-
-    # MATLAB: X = IQ_data;
-    X = IQ_data.copy()
-
-    # MATLAB: IQ_data = filtfilt(b, a, IQ_data);
     IQ_data = filtfilt(b, a, IQ_data)
 
-    # MATLAB: phase = (unwrap(angle(X)));
-    phase = np.unwrap(np.angle(X))
-
-    # MATLAB: pshift = diff(phase)* (fs/(2*pi*1e6))+520;
-    pshift = np.diff(phase) * (fs / (2 * np.pi * 1e6)) + 520
-
-    # MATLAB: phase = phase * (fs/2*pi);
-    # IMPORTANT: MATLAB left-to-right means (phase * fs / 2) * pi
-    phase = phase * (fs / 2) * np.pi
-
-    # FFT and frequency axis
-    Z = np.fft.fftshift(np.fft.fft(IQ_data))
-
-    freqs = np.linspace(-fs / 2, fs / 2, len(IQ_data))
-
-    # Magnitude (in dB)
+    # Peak detection on magnitude
     mag = np.abs(IQ_data)
-    mag = 20 * np.log10(mag)  # NOTE: MATLAB log() = natural log, but dB should be log10
-
-    N = len(IQ_data)
-    elapsed_sec = np.arange(N) / fs
-
-    # Compute spectrogram
-
-    f, t, Sxx = spectrogram(
-        IQ_data,
-        fs=fs,
-        window='hann',
-        nperseg=1024,
-        noverlap=1023,
-        nfft=1024,
-        return_onesided=False,
-        mode='magnitude'
-    )
-
-    # Center frequencies (equivalent to 'centered')
-    Sxx = np.fft.fftshift(Sxx, axes=0)
-    f = np.fft.fftshift(f)
-
-    # Plot (equivalent to subplot(1,2,1))
-
-    '''
-           plt.figure()
-       plt.subplot(1, 2, 1)
-
-       plt.pcolormesh(t, f / 1e6, 20 * np.log10(Sxx + 1e-12), shading='auto')
-       plt.ylabel("Frequency (MHz)")
-       plt.xlabel("Time (s)")
-       plt.title("Spectrogram")
-       plt.colorbar(label="Magnitude (dB)")
-       plt.show()
-
-       '''
-    # y-data
-    minimumMag = 10
-
-    # MATLAB: [peaks, locs] = findpeaks(abs(IQ_data), tt, 'MinPeakHeight', minimumMag);
-    mag = np.abs(IQ_data)
-
-    # SciPy find_peaks returns indices, not x-values.
     idx, props = find_peaks(mag, height=minimumMag)
+    peaks = mag[idx]
+    locs = tt[idx]
 
-    peaks = mag[idx]  # peak magnitudes (like MATLAB "peaks")
-    locs = tt[idx]  # peak locations in time (like MATLAB "locs" when tt passed)
-
-    cutoff_time = 50  # <-- choose based on your plot units
+    # Ignore startup peaks
     valid = locs > cutoff_time
     locs = locs[valid]
     peaks = peaks[valid]
 
-    # -----------------------
-    # Cluster Parameters
-    cluster = 7
-    clusterCount = 0
-
-    clusterPeaksArray = []
+    # ---------- CLUSTERING (no duplicates) ----------
     clusterLocsArray = []
-
-    clusterWeedOutDist = 3.5
-
-    endDat = len(locs) - 1
-
-    startDel = 0
-    endDel = 0
-    Pos = 0
-
-    timeFilter = 350
-
-    curLocsArray = []
-    averageTimes = []
-    forPos = 0
-    tPos = 0
-
-    endDat = len(locs) - 1
-
-    clusterCount = 0
-    Pos = 0  # Python 0-based
-
     clusterPeaksArray = []
-    clusterLocsArray = []
 
-    startDel = 0
-    endDel = 0
-
-    # -------------------------
-    # First pass: collect clustered peaks/locs
-    # MATLAB: for s = 1:endDat
     s = 0
     endDat = len(locs) - 1
-
     while s < endDat:
-
-        # check if this could be the start of a cluster
         if (locs[s + 1] - locs[s]) < clusterWeedOutDist:
             startDel = s
 
-            # count how long the cluster continues
             clusterCount = 0
             c = s
             while c < endDat and (locs[c + 1] - locs[c]) < clusterWeedOutDist:
                 clusterCount += 1
                 c += 1
 
-            # if cluster is large enough, collect it ONCE
             if clusterCount >= cluster:
                 endDel = startDel + clusterCount
 
@@ -197,126 +151,200 @@ def Uuga():
                     clusterLocsArray.append(locs[k])
                     clusterPeaksArray.append(peaks[k])
 
-                # 🔑 CRITICAL LINE: skip past this cluster
                 s = endDel + 1
                 continue
 
         s += 1
 
-    # Convert to numpy arrays if you want MATLAB-like arrays
-    clusterPeaksArray = np.array(clusterPeaksArray)
     clusterLocsArray = np.array(clusterLocsArray)
+    clusterPeaksArray = np.array(clusterPeaksArray)
 
-    # -------------------------
-    # Second pass: compute average time per cluster group
-    firstPoint = 0
-    timeBetweenClusters = 50
+    # ---------- EDGE PICKING (your blue points logic, made robust) ----------
+    # Instead of fixed-size arrays (np.zeros(8)), build dynamically:
+    ToFtimes = []
+    ToFpeaks = []
 
-    curLocsArray = []
-    averageTimes = []
+    if len(clusterLocsArray) >= 2:
+        first_idx = 0
+        for i in range(len(clusterLocsArray) - 1):
+            # gap indicates next pulse cluster
+            if (clusterLocsArray[i + 1] - clusterLocsArray[i]) > gap_for_edges:
+                last_idx = i
 
-    # MATLAB: for s = 1:length(clusterLocsArray)-1
-    for s in range(0, len(clusterLocsArray) - 1):
+                # store edge points: first and last of this cluster group
+                ToFtimes.extend([clusterLocsArray[first_idx], clusterLocsArray[last_idx]])
+                ToFpeaks.extend([clusterPeaksArray[first_idx], clusterPeaksArray[last_idx]])
 
-        # Detect a gap -> end of a cluster group
-        if (clusterLocsArray[s + 1] - clusterLocsArray[s]) > timeBetweenClusters:
-            endPoint = s - 1
+                first_idx = i + 1
 
-            # Collect locs in this cluster group
-            curLocsArray = []
-            for c in range(firstPoint, endPoint + 1):
-                curLocsArray.append(clusterLocsArray[c])
+        # finalize last group
+        last_idx = len(clusterLocsArray) - 1
+        ToFtimes.extend([clusterLocsArray[first_idx], clusterLocsArray[last_idx]])
+        ToFpeaks.extend([clusterPeaksArray[first_idx], clusterPeaksArray[last_idx]])
 
-            # Average time for this group
-            avgTime = np.mean(curLocsArray) if len(curLocsArray) > 0 else np.nan
-            averageTimes.append(avgTime)
+    ToFtimesArray = np.array(ToFtimes)
+    ToFpeaksArray = np.array(ToFpeaks)
 
-            # Reset for next group
-            firstPoint = s
+    # ---------- ToF calculations (pairwise differences) ----------
+    CalcToF = []
+    for i in range(0, len(ToFtimesArray) - 1, 2):
+        CalcToF.append(ToFtimesArray[i + 1] - ToFtimesArray[i])
+    CalcToFArray = np.array(CalcToF)
 
-    if len(clusterLocsArray) > 0 and firstPoint < len(clusterLocsArray):
-        cur = clusterLocsArray[firstPoint:]
-        averageTimes = np.append(averageTimes, np.mean(cur))
+    return {
+        "tt": tt,
+        "IQ_data": IQ_data,
+        "clusterLocsArray": clusterLocsArray,
+        "clusterPeaksArray": clusterPeaksArray,
+        "ToFtimesArray": ToFtimesArray,
+        "ToFpeaksArray": ToFpeaksArray,
+        "CalcToFArray": CalcToFArray,
+    }
 
-    averageTimes = np.array(averageTimes)
 
-    s = 0
-    curCount = 0
-    ToFArrayLocation = 0
-    endDataCluster = len(clusterLocsArray) - 1
-    ToFpeaksArray = np.zeros(8)
-    ToFtimesArray = np.zeros(8)
+def save_plot(out, iq_path: Path):
+    tt = out["tt"]
+    IQ_data = out["IQ_data"]
+    clusterLocsArray = out["clusterLocsArray"]
+    clusterPeaksArray = out["clusterPeaksArray"]
+    ToFtimesArray = out["ToFtimesArray"]
+    ToFpeaksArray = out["ToFpeaksArray"]
 
-    for s in range(0, endDataCluster):
+    plt.figure(figsize=(10, 5))
 
-        if clusterLocsArray[s + 1] - clusterLocsArray[s] > 5:
-            ToFpeaksArray[ToFArrayLocation] = clusterPeaksArray[s - curCount]
-            ToFpeaksArray[ToFArrayLocation + 1] = clusterPeaksArray[s]
-
-            ToFtimesArray[ToFArrayLocation] = clusterLocsArray[s - curCount]
-            ToFtimesArray[ToFArrayLocation + 1] = clusterLocsArray[s]
-
-            curCount = -1
-            ToFArrayLocation += 2
-        elif s == endDataCluster - 1:
-            ToFpeaksArray[ToFArrayLocation] = clusterPeaksArray[s - curCount]
-            ToFpeaksArray[ToFArrayLocation + 1] = clusterPeaksArray[s + 1]
-
-            ToFtimesArray[ToFArrayLocation] = clusterLocsArray[s - curCount]
-            ToFtimesArray[ToFArrayLocation + 1] = clusterLocsArray[s + 1]
-
-        curCount += 1
-
-    CalcToFArray = np.zeros(4)
-    s = 0
-    curCount = 0
-    while s < len(ToFtimesArray) - 1:
-        CalcToFArray[curCount] = ToFtimesArray[s+1] - ToFtimesArray[s]
-        s += 2
-        curCount += 1
-
-    for s in range(0, len(CalcToFArray)):
-        print("The time of flight for signal", s + 1 ,"is", CalcToFArray[s])
-
-    CATCHERdebug = 0
-
-    # plt.subplot(1, 2, 1)
-
-    # Main signals
     plt.plot(tt, np.abs(IQ_data), label="Magnitude")
     plt.plot(tt, np.imag(IQ_data), label="Imaginary")
 
-    # Overlay clustered peaks
-    plt.plot(
-        clusterLocsArray,
-        clusterPeaksArray,
-        'ro',
-        markersize=8,
-        linewidth=1.5,
-        label="Detected Peaks"
-    )
+    # Detected peaks (red)
+    if len(clusterLocsArray) > 0:
+        plt.plot(clusterLocsArray, clusterPeaksArray, 'ro', markersize=6, label="Detected Peaks")
 
-    plt.plot(
-        ToFtimesArray,
-        ToFpeaksArray,
-        'bo',
-        markersize=8,
-        linewidth=1.5,
-        label="Im edging Peaks"
-    )
+    # Edge peaks (blue)
+    if len(ToFtimesArray) > 0:
+        plt.plot(ToFtimesArray, ToFpeaksArray, 'bo', markersize=6, label="Edge Peaks")
 
-    # Labels and title
     plt.xlabel("Time")
     plt.ylabel("Magnitude")
-    plt.title("RX2 (Wireless): D=10ft")
-
-    # Legend
-    plt.legend()
-
-    # Grid (MATLAB: grid minor)
-    plt.grid(True, which="both", linestyle="--", alpha=0.5)
+    plt.title(iq_path.name)
+    plt.grid(True, which="both", linestyle="--", alpha=0.4)
     plt.minorticks_on()
-    plt.show()
+    plt.legend()
+    plt.tight_layout()
+
+    out_png = iq_path.parent / f"{iq_path.stem}_plot.png"
+    plt.savefig(out_png, dpi=200)
+    plt.close()
+    return out_png
+
+
+def save_tof_txt(out, iq_path: Path):
+    CalcToFArray = out["CalcToFArray"]
+
+    out_txt = iq_path.parent / f"{iq_path.stem}_tof.txt"
+    with open(out_txt, "w", encoding="utf-8") as f:
+        f.write(f"File: {iq_path}\n")
+        f.write(f"Num ToF pulses: {len(CalcToFArray)}\n\n")
+        for i, tof in enumerate(CalcToFArray, start=1):
+            f.write(f"The time of flight for signal {i} is {tof}\n")
+    return out_txt
+
+def load_existing_rows(csv_path: Path):
+    rows = {}  # key: (Folder, Capture, Pulse) -> ToF
+    if csv_path.exists():
+        with open(csv_path, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for r in reader:
+                key = (r["Folder"], int(r["Capture"]), int(r["Pulse"]))
+                rows[key] = float(r["ToF"])
+    return rows
+
+def upsert_tofs(rows_dict, run_name, capture_num, tof_array):
+    for pulse_idx, tof in enumerate(tof_array, start=1):
+        key = (run_name, int(capture_num), int(pulse_idx))
+        rows_dict[key] = float(tof)  # replace if exists, add if not
+
+def write_rows_atomic(csv_path: Path, rows_dict):
+    tmp_path = csv_path.with_suffix(".tmp")
+    with open(tmp_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Folder", "Capture", "Pulse", "ToF"])
+
+        # stable output ordering
+        for (folder, cap, pulse) in sorted(rows_dict.keys()):
+            writer.writerow([folder, cap, pulse, rows_dict[(folder, cap, pulse)]])
+
+    tmp_path.replace(csv_path)  # atomic-ish replace on Windows
+
+def infer_run_name(iq_path: Path) -> str:
+    # Find the nearest parent folder that looks like run_#### (robust)
+    for p in iq_path.parents:
+        if p.name.lower().startswith("run_"):
+            return p.name
+    return iq_path.parent.name  # fallback
+
+def infer_capture_num(iq_path: Path) -> int:
+    # Parses "..._capture_1.iq" safely (avoids grabbing things like 0897)
+    tokens = iq_path.stem.split("_")
+    for i, tok in enumerate(tokens[:-1]):
+        if tok.lower() == "capture" and tokens[i + 1].isdigit():
+            return int(tokens[i + 1])
+    return 1  # fallback
+
+def bulk_run(root_dir: Path, minimumMag: float, cluster: int, clusterWeedOutDist: float):
+    if root_dir is None:
+        print("No folder selected. Exiting.")
+        return
+
+    ROOT_DIR = Path(root_dir)
+
+    CSV_PATH = ROOT_DIR / "tof_results.csv"
+    rows = load_existing_rows(CSV_PATH)  # existing upsert map (Folder,Capture,Pulse)->ToF
+
+    iq_files = sorted(ROOT_DIR.rglob("*.iq"))
+    print(f"Selected folder: {ROOT_DIR}")
+    print(f"Found {len(iq_files)} .iq files")
+
+    for iq_path in iq_files:
+        out = process_one_iq_file(
+            iq_path,
+            minimumMag=minimumMag,
+            cluster=cluster,
+            clusterWeedOutDist=clusterWeedOutDist
+        )
+        if out is None:
+            print(f"[SKIP] {iq_path} (empty/too small)")
+            continue
+
+        run_name = infer_run_name(iq_path)
+        capture_num = infer_capture_num(iq_path)
+
+        # Optional guard: only allow capture 1/2 (prevents weird 4-digit capture IDs)
+        # If you sometimes have capture_3 etc, expand this tuple.
+        if capture_num not in (1, 2):
+            print(f"[WARN] capture_num={capture_num} (unexpected) for {iq_path.name} -> skipping CSV write")
+        else:
+            # ✅ ONE source of truth for CSV writing (upsert then rewrite)
+            upsert_tofs(rows, run_name, capture_num, out["CalcToFArray"])
+            write_rows_atomic(CSV_PATH, rows)
+
+        # Console output
+        for i, tof in enumerate(out["CalcToFArray"], start=1):
+            print(f"{iq_path.name}: The time of flight for signal {i} is {tof}")
+
+        # Save plot + txt INSIDE the same folder as the iq file (once)
+        png_path = save_plot(out, iq_path)
+        txt_path = save_tof_txt(out, iq_path)
+        print(f"[OK] {iq_path.name} -> {txt_path.name}, {png_path.name}")
+
+    print(f"\nDone. CSV: {CSV_PATH}")
 
 if __name__ == "__main__":
-    Uuga()
+    root_dir, minimumMag, cluster, clusterWeedOutDist = parse_args_with_prompts()
+
+    if root_dir is None:
+        root_dir = choose_folder_gui("Pick the folder to iterate over (.iq bulk folder)")
+        if root_dir is None:
+            print("No folder selected. Exiting.")
+            raise SystemExit(1)
+
+    bulk_run(root_dir, minimumMag, cluster, clusterWeedOutDist)
