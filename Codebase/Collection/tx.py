@@ -152,8 +152,8 @@ def main() -> int:
     ap.add_argument("--freq", type=int, default=520_000_000)
     ap.add_argument("--sr", type=int, default=20_000_000)
     ap.add_argument("--nsamples", type=int, default=7_000)
-    ap.add_argument("--lna", type=int, default=30)
-    ap.add_argument("--vga", type=int, default=30)
+    ap.add_argument("--lna", type=int, default=32)
+    ap.add_argument("--vga", type=int, default=32)
     ap.add_argument("--amp", type=int, default=45)
     ap.add_argument("--pulse", default="/opt/TVWS/Codebase/Collection/pilot.iq")
     ap.add_argument("--pass", dest="password", default="Kennesaw123")
@@ -188,7 +188,7 @@ def main() -> int:
         name="rx1",
         user="pi1",
         host="100.101.107.104",
-        remote_rx_py="/opt/TVWS/Codebase/Collection/rx.py",
+        remote_rx_py="/opt/TVWS/Codebase/Collection/rx_1.py",
         remote_outfile="/home/pi1/capture_1.iq",
         local_log="rx1.log",
     )
@@ -196,7 +196,7 @@ def main() -> int:
         name="rx2",
         user="pi2",
         host="100.85.78.54",
-        remote_rx_py="/opt/TVWS/Codebase/Collection/rx.py",
+        remote_rx_py="/opt/TVWS/Codebase/Collection/rx_2.py",
         remote_outfile="/home/pi2/capture_2.iq",
         local_log="rx2.log",
     )
