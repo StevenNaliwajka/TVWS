@@ -27,6 +27,7 @@ class MetaDataObj:
         self.json_path = Path(json_path) if json_path is not None else default_path
 
         data = _load_json(self.json_path)
+        self.edge_percentage = .95
 
         # Store the raw dict too (helpful for debugging / iteration)
         self.data = data
