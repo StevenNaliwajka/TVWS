@@ -20,19 +20,11 @@ if not exist "%PS1%" (
 )
 
 echo [run.bat] Starting PowerShell...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
-  "& { $ErrorActionPreference='Stop'; " ^
-  "  Start-Transcript -Path '%LOG%' -Force | Out-Null; " ^
-  "  Set-PSDebug -Trace 1; " ^
-  "  & '%PS1%'; " ^
-  "  $rc = if ($LASTEXITCODE) { $LASTEXITCODE } else { 0 }; " ^
-  "  Set-PSDebug -Off; " ^
-  "  Stop-Transcript | Out-Null; " ^
-  "  exit $rc }"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%PS1%"
 
 set "RC=%ERRORLEVEL%"
 echo.
 echo [run.bat] PowerShell returned %RC%
-echo [run.bat] Transcript: "%LOG%"
+echo [run.bat] Log folder: "%PROJECT_ROOT%\Logs"
 pause
 exit /b %RC%

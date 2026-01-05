@@ -10,6 +10,12 @@ function Pause-Exit {
     exit $Code
 }
 
+
+# Pre-init so catch{} can print paths even if we fail early
+$ProjectRoot = $null
+$LogsDir = $null
+$Log = $null
+
 try {
     # ...\TVWS\Codebase\Setup\run.ps1 -> ...\TVWS
     $ScriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -127,15 +133,86 @@ try {
 }
 catch {
     Write-Host ""
-    Write-Host "Unhandled error (full details):"
+    Write-Host "Unhandled PowerShell error (full stack + context):"
     Write-Host "--------------------------------"
-    Write-Host ($_ | Out-String)
-    if ($_.Exception) {
-        Write-Host "Exception:"
-        Write-Host ($_.Exception | Format-List * -Force | Out-String)
+
+    try {
+        Write-Host ("Time: {0}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"))
+        Write-Host ("Host: {0}" -f $Host.Name)
+        Write-Host ("PS:   {0}" -f $PSVersionTable.PSVersion.ToString())
+        Write-Host ""
+    } catch {}
+
+    # ErrorRecord (includes CategoryInfo, FullyQualifiedErrorId, ScriptStackTrace, etc.)
+    try {
+        Write-Host "ErrorRecord (Format-List * -Force):"
+        Write-Host (($_ | Format-List * -Force) | Out-String)
+    } catch {}
+
+    # Invocation / position info
+    try {
+        if ($_.InvocationInfo) {
+            Write-Host "InvocationInfo:"
+            Write-Host (($_.InvocationInfo | Format-List * -Force) | Out-String)
+            if ($_.InvocationInfo.PositionMessage) {
+                Write-Host "PositionMessage:"
+                Write-Host $_.InvocationInfo.PositionMessage
+            }
+        }
+    } catch {}
+
+    # Script stack trace (PowerShell)
+    try {
+        if ($_.ScriptStackTrace) {
+            Write-Host "ScriptStackTrace:"
+            Write-Host $_.ScriptStackTrace
+        }
+    } catch {}
+
+    # .NET exception chain
+    function _Print-ExceptionChain {
+        param([Exception]$Ex)
+        $i = 0
+        while ($Ex -ne $null) {
+            Write-Host ("Exception[{0}]: {1}" -f $i, $Ex.GetType().FullName)
+            Write-Host ("Message     : {0}" -f $Ex.Message)
+            if ($Ex.StackTrace) {
+                Write-Host "StackTrace  :"
+                Write-Host $Ex.StackTrace
+            } else {
+                Write-Host "StackTrace  : <none>"
+            }
+            Write-Host ""
+            $Ex = $Ex.InnerException
+            $i++
+        }
     }
+
+    try {
+        if ($_.Exception) {
+            Write-Host "Exception chain:"
+            _Print-ExceptionChain -Ex $_.Exception
+        }
+    } catch {}
+
+    # Call stack in the current scope
+    try {
+        Write-Host "Get-PSCallStack:"
+        Write-Host ((Get-PSCallStack | Format-Table -AutoSize | Out-String))
+    } catch {}
+
     Write-Host "--------------------------------"
-    Write-Host "See logs in:"
-    Write-Host "  $(Join-Path $ProjectRoot 'Logs')"
+    if ($ProjectRoot) {
+        Write-Host "Project root:"
+        Write-Host "  $ProjectRoot"
+    }
+    if ($Log) {
+        Write-Host "Log file:"
+        Write-Host "  $Log"
+    } elseif ($ProjectRoot) {
+        Write-Host "See logs in:"
+        Write-Host ("  {0}" -f (Join-Path $ProjectRoot 'Logs'))
+    }
+
     Pause-Exit 1
 }

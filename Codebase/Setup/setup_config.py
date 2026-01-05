@@ -28,12 +28,14 @@ def _default_metadata() -> Dict[str, Any]:
     NOTE: JSON needs escaped backslashes for Windows paths.
     """
     return {
-        "baseband_hz": 491_000_000,
-        "sync_hz": 493_000_000,
-        "signal_tx_hz": 489_000_000,
-        "sample_rate_hz": 20_000_000,
-        "wired_iq_file_path": r"C:\Users\steve\PycharmProjects\TVWS\Data\Wired\20251119_22-41-36_1763610096_rx1_2ft01616_tx030.iq",
-        "selected_iq_path": r"C:\Users\steve\PycharmProjects\TVWS\Data\10 Feet\20251119_23-24-44_1763612684_rx2_10ft14030_tx044.iq",
+      "baseband_hz": 491000000,
+      "sync_hz": 493000000,
+      "signal_tx_hz": 489000000,
+      "sample_rate_hz": 20000000,
+      "wired_iq_file_path": "C:\\Users\\steve\\PycharmProjects\\TVWS\\Data\\Wired\\20251119_22-41-36_1763610096_rx1_2ft01616_tx030.iq",
+      "selected_iq_path": "C:\\Users\\steve\\PycharmProjects\\TVWS\\Data\\10 Feet\\20251119_23-24-44_1763612684_rx2_10ft14030_tx044.iq",
+      "edge_percentage": 0.98,
+      "qty_peaks": 4
     }
 
 
