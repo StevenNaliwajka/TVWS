@@ -76,25 +76,66 @@ def detect_peaks_in_iq(
     #for _, row in peaks_df.iterrows():
     #    print(f"  t = {row['time_ns']:.3f} ns, amplitude = {row['amplitude']:.6f}")
 
-    # ---- Plot magnitude with peaks marked ----
-    fig, ax = plt.subplots()
-    ax.plot(t_ns, mag, label="|IQ| (magnitude)")
-    if not peaks_df.empty:
-        ax.scatter(
-            peaks_df["time_ns"],
-            peaks_df["amplitude"],
-            marker="x",
-            s=40,
-            label=f"Top {min(qty_peaks, len(peaks_df))} peaks",
-        )
-
-    ax.set_xlabel("Time (ns)")
-    ax.set_ylabel("Amplitude (|IQ|)")
-    ax.set_title("HackRF IQ Magnitude with Detected Peaks")
-    ax.legend()
-    ax.grid(True)
-
-    plt.tight_layout()
-    plt.show()
+    # # ---- Plot magnitude with peaks marked ----
+    # fig, ax = plt.subplots()
+    # ax.plot(t_ns, mag, label="|IQ| (magnitude)")
+    # if not peaks_df.empty:
+    #     ax.scatter(
+    #         peaks_df["time_ns"],
+    #         peaks_df["amplitude"],
+    #         marker="x",
+    #         s=40,
+    #         label=f"Top {min(qty_peaks, len(peaks_df))} peaks",
+    #     )
+    #
+    # ax.set_xlabel("Time (ns)")
+    # ax.set_ylabel("Amplitude (|IQ|)")
+    # ax.set_title("HackRF IQ Magnitude with Detected Peaks")
+    # ax.legend()
+    # ax.grid(True)
+    #
+    # plt.tight_layout()
+    # plt.show()
 
     return peaks_df
+
+
+def pick_peak_time_ns(peaks_df: pd.DataFrame, pick: str = "earliest") -> Optional[float]:
+    """
+    Choose a single "arrival time" from a peaks dataframe returned by detect_peaks_in_iq().
+
+    pick:
+      - "earliest" (default): smallest time_ns
+      - "max_amplitude": time_ns of the largest amplitude peak
+      - "latest": largest time_ns
+
+    Returns time in nanoseconds, or None if peaks_df is empty/invalid.
+    """
+    try:
+        if peaks_df is None or len(peaks_df) == 0:
+            return None
+
+        if "time_ns" not in peaks_df.columns:
+            # Back-compat in case caller uses raw findpeaks df
+            if "x" in peaks_df.columns:
+                t_col = "x"
+            else:
+                return None
+        else:
+            t_col = "time_ns"
+
+        if pick == "earliest":
+            return float(peaks_df[t_col].min())
+        if pick == "latest":
+            return float(peaks_df[t_col].max())
+        if pick == "max_amplitude":
+            a_col = "amplitude" if "amplitude" in peaks_df.columns else ("y" if "y" in peaks_df.columns else None)
+            if a_col is None:
+                return float(peaks_df[t_col].min())
+            idx = peaks_df[a_col].astype(float).idxmax()
+            return float(peaks_df.loc[idx, t_col])
+
+        # Unknown pick strategy -> default
+        return float(peaks_df[t_col].min())
+    except Exception:
+        return None
