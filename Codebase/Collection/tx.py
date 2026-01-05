@@ -173,7 +173,7 @@ def main() -> int:
     ap.add_argument("--sr", type=int, default=20_000_000)
     ap.add_argument("--nsamples", type=int, default=7_000)
     ap.add_argument("--lna", type=int, default=40)
-    ap.add_argument("--vga", type=int, default=35)
+    ap.add_argument("--vga", type=int, default=38)
     ap.add_argument("--rx1-lna", type=int, default=None, help="Override RX1 LNA gain (else uses --lna)")
     ap.add_argument("--rx1-vga", type=int, default=None, help="Override RX1 VGA gain (else uses --vga)")
     ap.add_argument("--rx2-lna", type=int, default=None, help="Override RX2 LNA gain (else uses --lna)")

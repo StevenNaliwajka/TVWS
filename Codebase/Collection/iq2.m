@@ -2,7 +2,7 @@
 
 % Define file name and parameters
 data_dir = 'C:\Users\steve\PycharmProjects\TVWS\Data';
-filename = fullfile(data_dir, '2026-01-05T00-03-25_2207_capture_1.iq');  % Full path to the IQ capture
+filename = fullfile(data_dir, '2026-01-05T00-06-33_2558_capture_1.iq');  % Full path to the IQ capture
 fs = 20e6;  % HackRF sample rate (20 MHz)
 fc = 491e6;  % Center frequency (MHz for reference)
 
