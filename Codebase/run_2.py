@@ -16,8 +16,11 @@ def run():
     data_dir = Path(__file__).resolve().parents[1] / "Data"
     signal_grid = load_signal_grid(data_dir)
 
+    signal = filter_signal(metadata, iq)
+
     wired_signal = signal_grid[-1][0]  # same wired reference for all
     compute_tof(metadata, wired_signal)  # do once
+    detect_peaks_in_iq(metadata,iq,"peakdetect",qty_peaks_expected)
 
     for row in signal_grid:
         for signal in row:
