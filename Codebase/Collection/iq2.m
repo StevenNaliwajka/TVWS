@@ -2,7 +2,7 @@
 
 % Define file name and parameters
 data_dir = 'C:\Users\steve\PycharmProjects\TVWS\Data';
-filename = fullfile(data_dir, '2026-01-04T23-58-51_4071_capture_1.iq');  % Full path to the IQ capture
+filename = fullfile(data_dir, '2026-01-05T00-03-25_2207_capture_1.iq');  % Full path to the IQ capture
 fs = 20e6;  % HackRF sample rate (20 MHz)
 fc = 491e6;  % Center frequency (MHz for reference)
 
@@ -43,7 +43,8 @@ tt = 1:length(IQ_data);
 wn = [0.15, 0.3];  % Normalized frequencies (0 to 1)
 [b, a] = butter(4, wn, 'bandpass');  % 4th-order Butterworth filter
 X = IQ_data;
-%IQ_data = filtfilt(b, a, IQ_data);
+
+IQ_data = filtfilt(b, a, IQ_data);
 phase =(unwrap(angle(X)));
 pshift = diff(phase)* (fs/(2*pi*1e6))+520;
 phase = phase * (fs/2*pi);
