@@ -33,16 +33,22 @@ Current Wants:
 def parse_args_with_prompts():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=str, default=None, help="Root directory to process")
-    parser.add_argument("--minimumMag", type=float, default=None, help="Min peak height threshold")
+    parser.add_argument("--minMag_cap1", type=float, default=None, help="Min peak height threshold for cap1")
+    parser.add_argument("--minMag_cap2", type=float, default=None, help="Min peak height threshold for cap2")
     parser.add_argument("--cluster", type=int, default=None, help="Min points to qualify as a cluster")
     parser.add_argument("--clusterWeedOutDist", type=float, default=None, help="Max spacing within a cluster")
+
 
     args = parser.parse_args()
 
     # Prompt if missing (keeps old behavior but interactive)
-    if args.minimumMag is None:
-        val = input("Enter minimumMag (default 2): ").strip()
-        args.minimumMag = float(val) if val else 2.0
+    if args.minMag_cap1 is None:
+        val = input("Enter minimumMag1 (default 2): ").strip()
+        args.minMag_cap1 = float(val) if val else 2.0
+
+    if args.minMag_cap2 is None:
+        val = input("Enter minimumMag2 (default 2): ").strip()
+        args.minMag_cap2 = float(val) if val else 2.0
 
     if args.cluster is None:
         val = input("Enter cluster (default 7): ").strip()
@@ -53,7 +59,9 @@ def parse_args_with_prompts():
         args.clusterWeedOutDist = float(val) if val else 3.5
 
     root_dir = Path(args.root) if args.root else None
-    return root_dir, args.minimumMag, args.cluster, args.clusterWeedOutDist
+
+
+    return root_dir, args.minMag_cap1, args.minMag_cap2, args.cluster, args.clusterWeedOutDist
 
 def get_root_dir():
     parser = argparse.ArgumentParser()
@@ -290,7 +298,7 @@ def infer_capture_num(iq_path: Path) -> int:
             return int(tokens[i + 1])
     return 1  # fallback
 
-def bulk_run(root_dir: Path, minimumMag: float, cluster: int, clusterWeedOutDist: float):
+def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist):
     if root_dir is None:
         print("No folder selected. Exiting.")
         return
@@ -305,6 +313,16 @@ def bulk_run(root_dir: Path, minimumMag: float, cluster: int, clusterWeedOutDist
     print(f"Found {len(iq_files)} .iq files")
 
     for iq_path in iq_files:
+        run_name = infer_run_name(iq_path)
+        capture_num = infer_capture_num(iq_path)
+
+        if capture_num == 1:
+            minimumMag = minMag_cap1
+        elif capture_num == 2:
+            minimumMag = minMag_cap2
+        else:
+            minimumMag = minMag_cap1  # fallback (or skip)
+
         out = process_one_iq_file(
             iq_path,
             minimumMag=minimumMag,
@@ -315,8 +333,7 @@ def bulk_run(root_dir: Path, minimumMag: float, cluster: int, clusterWeedOutDist
             print(f"[SKIP] {iq_path} (empty/too small)")
             continue
 
-        run_name = infer_run_name(iq_path)
-        capture_num = infer_capture_num(iq_path)
+
 
         # Optional guard: only allow capture 1/2 (prevents weird 4-digit capture IDs)
         # If you sometimes have capture_3 etc, expand this tuple.
@@ -339,7 +356,10 @@ def bulk_run(root_dir: Path, minimumMag: float, cluster: int, clusterWeedOutDist
     print(f"\nDone. CSV: {CSV_PATH}")
 
 if __name__ == "__main__":
-    root_dir, minimumMag, cluster, clusterWeedOutDist = parse_args_with_prompts()
+    root_dir, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist = parse_args_with_prompts()
+
+
+
 
     if root_dir is None:
         root_dir = choose_folder_gui("Pick the folder to iterate over (.iq bulk folder)")
@@ -347,4 +367,4 @@ if __name__ == "__main__":
             print("No folder selected. Exiting.")
             raise SystemExit(1)
 
-    bulk_run(root_dir, minimumMag, cluster, clusterWeedOutDist)
+    bulk_run(root_dir, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist)
