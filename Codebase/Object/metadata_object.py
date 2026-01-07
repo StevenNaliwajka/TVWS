@@ -27,10 +27,11 @@ class MetaDataObj:
         self.json_path = Path(json_path) if json_path is not None else default_path
 
         data = _load_json(self.json_path)
-        self.edge_percentage = .95
+        edge_percentage = _load_json(self.json_path)
 
         # Store the raw dict too (helpful for debugging / iteration)
         self.data = data
+        self.edge_percentage = .90
 
 
         ## relative tof is stored as a 2D array w/

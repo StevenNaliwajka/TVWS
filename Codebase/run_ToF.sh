@@ -1,35 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- Go to project root (folder containing Codebase/) ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -d "$SCRIPT_DIR/Codebase" ]]; then
-  cd "$SCRIPT_DIR"
-elif [[ -d "$SCRIPT_DIR/../Codebase" ]]; then
-  cd "$SCRIPT_DIR/.."
+# cd to project root (folder containing Codebase/)
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -d "$HERE/Codebase" ]]; then
+  cd "$HERE"
 else
-  echo "ERROR: Couldn't locate project root (no Codebase/ found)."
+  cd "$HERE/.."
+fi
+
+# Pick python: prefer project venv, fall back to system python3
+PY="./.venv/bin/python"
+if [[ ! -x "$PY" ]]; then
+  echo "WARN: Couldn't find venv python at $PY"
+  if command -v python3 >/dev/null 2>&1; then
+    PY="$(command -v python3)"
+    echo "Using system python: $PY"
+  else
+    echo "ERROR: python3 not found and venv missing at ./.venv/bin/python"
+    exit 1
+  fi
+fi
+
+read -r -p "Enter the directory to process: " DIR
+if [[ ! -d "$DIR" ]]; then
+  echo "ERROR: Folder not found: $DIR"
   exit 1
 fi
 
-# --- Pick python interpreter from venv (matches PyCharm) ---
-PY="./.venv/Scripts/python.exe"
-if [[ ! -f "$PY" ]]; then
-  echo "ERROR: Couldn't find venv python at: $PY"
-  echo "If your venv folder name is different, update PY in this script."
-  exit 1
-fi
-
-# --- Ask user for the data/results directory ---
-read -r -p "Enter the directory to process: " ROOT_DIR
-if [[ ! -d "$ROOT_DIR" ]]; then
-  echo "ERROR: Folder not found: $ROOT_DIR"
-  exit 1
-fi
-
-# --- Run the three scripts in order (as modules so Codebase imports work) ---
-"$PY" -m Codebase.UugaDuuga --root "$ROOT_DIR"
-"$PY" -m Codebase.ToFSheetAverage --root "$ROOT_DIR"
-"$PY" -m Codebase.ToFSheetAverageAdd --root "$ROOT_DIR"
+"$PY" -m Codebase.UugaDuuga --root "$DIR"
+"$PY" -m Codebase.ToFSheetAverage --root "$DIR"
+"$PY" -m Codebase.ToFSheetAverageAdd --root "$DIR"
 
 echo "All scripts completed successfully."

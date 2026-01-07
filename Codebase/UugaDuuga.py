@@ -188,7 +188,7 @@ def process_one_iq_file(iq_path: Path,
                         cluster=7,
                         clusterWeedOutDist=3.5,
                         timeFilter=350,
-                        timeBetweenClusters=50,
+                        timeBetweenClusters=30,
                         gap_for_edges=5):
     """
     Processes a single .iq file and returns:
@@ -218,10 +218,12 @@ def process_one_iq_file(iq_path: Path,
     # Butter bandpass + filtfilt (MATLAB-style)
     b, a = butter(N=4, Wn=wn, btype='bandpass')
     IQ_data = filtfilt(b, a, IQ_data)
+
     IQ_data = filter_signal(metadata,IQ_data)
 
     # Peak detection on magnitude
     mag = np.abs(IQ_data)
+
     idx, props = find_peaks(mag, height=minimumMag)
     peaks = mag[idx]
     locs = tt[idx]
