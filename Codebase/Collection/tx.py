@@ -226,7 +226,7 @@ def main() -> int:
     rx1 = RxHost(
         name="rx1",
         user="pi1",
-        host="100.101.107.104",
+        host="192.168.50.64",
         remote_rx_py="/opt/TVWS/Codebase/Collection/rx_1.py",
         remote_outfile="/home/pi1/capture_1.iq",
         local_log="rx1.log",
@@ -236,7 +236,7 @@ def main() -> int:
     rx2 = RxHost(
         name="rx2",
         user="pi2",
-        host="100.85.78.54",
+        host="192.168.50.119",
         remote_rx_py="/opt/TVWS/Codebase/Collection/rx_2.py",
         remote_outfile="/home/pi2/capture_2.iq",
         local_log="rx2.log",

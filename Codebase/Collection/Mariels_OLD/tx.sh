@@ -7,8 +7,8 @@ SR=20000000              # sample rate (Hz)
 NSAMPLES=10000000        # number of samples to capture
 AMP=28                 # TX amplitude/gain (for hackrf_transfer -x)
 PASS='Kennesaw123'       # password for both remote Pis (you provided)
-RX1_USER=pi1; RX1_HOST=192.168.1.64
-RX2_USER=pi2; RX2_HOST=192.168.1.119
+RX1_USER=pi1; RX1_HOST=100.101.107.104
+RX2_USER=pi2; RX2_HOST=100.85.78.54
 LOCAL_SAVE_DIR="$HOME/sdr"
 
 #mkdir -p "$LOCAL_SAVE_DIR"
