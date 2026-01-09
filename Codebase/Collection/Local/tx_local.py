@@ -201,7 +201,7 @@ def main() -> int:
 
     rx1 = RxProc(
         name="rx1",
-        rx_py=str(Path(__file__).with_name("rx_1.py")),
+        rx_py=str(Path(__file__).with_name("rx_1_local.py")),
         outfile=rx1_out,
         log_path=rx1_log,
         serial=args.rx1_serial,
@@ -210,7 +210,7 @@ def main() -> int:
     )
     rx2 = RxProc(
         name="rx2",
-        rx_py=str(Path(__file__).with_name("rx_2.py")),
+        rx_py=str(Path(__file__).with_name("rx_2_local.py")),
         outfile=rx2_out,
         log_path=rx2_log,
         serial=args.rx2_serial,

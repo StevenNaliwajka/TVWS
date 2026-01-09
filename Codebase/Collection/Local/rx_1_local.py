@@ -123,7 +123,7 @@ def main() -> int:
         r"wait.*trigger",
         r"waiting.*trigger",
         r"trigger.*armed",
-        r"armed",
+        r"armed",rx_1
     ], help="Regex to detect 'armed' state from hackrf output (repeatable).")
 
     args = ap.parse_args()
