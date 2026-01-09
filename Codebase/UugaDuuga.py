@@ -135,7 +135,7 @@ def parse_args_with_prompts():
     parser.add_argument("--minMag_cap2", type=float, default=None, help="Min peak height threshold for cap2")
     parser.add_argument("--cluster", type=int, default=None, help="Min points to qualify as a cluster")
     parser.add_argument("--clusterWeedOutDist", type=float, default=None, help="Max spacing within a cluster")
-
+    parser.add_argument("--filtering", type=int, default=None, help="choice to filter")
 
     args = parser.parse_args()
 
@@ -156,10 +156,14 @@ def parse_args_with_prompts():
         val = input("Enter clusterWeedOutDist (default 3.5): ").strip()
         args.clusterWeedOutDist = float(val) if val else 3.5
 
+    if args.filtering is None:
+        val = input("Enter 1 for filtering or 0 for no filtering: ").strip()
+        args.filtering = int(val) if val else 1
+
     root_dir = Path(args.root) if args.root else None
 
 
-    return root_dir, args.minMag_cap1, args.minMag_cap2, args.cluster, args.clusterWeedOutDist
+    return root_dir, args.minMag_cap1, args.minMag_cap2, args.cluster, args.clusterWeedOutDist, args.filtering
 
 def get_root_dir():
     parser = argparse.ArgumentParser()
@@ -188,8 +192,9 @@ def process_one_iq_file(iq_path: Path,
                         cluster=7,
                         clusterWeedOutDist=3.5,
                         timeFilter=350,
-                        timeBetweenClusters=30,
-                        gap_for_edges=5):
+                        timeBetweenClusters=40,
+                        gap_for_edges=5,
+                        filtering = 1):
     """
     Processes a single .iq file and returns:
       - tt, IQ_data
@@ -219,7 +224,9 @@ def process_one_iq_file(iq_path: Path,
     b, a = butter(N=4, Wn=wn, btype='bandpass')
     IQ_data = filtfilt(b, a, IQ_data)
 
-    IQ_data = filter_signal(metadata,IQ_data)
+    if filtering == 1:
+        IQ_data = filter_signal(metadata, IQ_data)
+
 
     # Peak detection on magnitude
     mag = np.abs(IQ_data)
@@ -390,28 +397,66 @@ def compute_overall_avg_centers_with_baseline(centers_rows, baseline_ref, tol=15
 def write_pulse_centers_excel(xlsx_path: Path, centers_rows):
     """
     centers_rows: list of tuples (Folder, Capture, Pulse, CenterTime, FileName)
+
     Creates a workbook with:
-      Sheet1: Per Test Pulse Centers
-      Sheet2: Overall Average Pulse Centers (by Pulse #)
+      Sheet1: Per Test Pulse Centers (WIDE)  -> one row per Folder, columns per pulse grouped by capture
+      Sheet2: Overall Avg/Median Pulse Centers (by Pulse #)  -> keep your existing summary table style
     """
     wb = Workbook()
+
+    # Baseline centers (your wired/reference capture baseline)
     BASELINE_C2 = np.array([
         58.50642884,
         119.6756707,
         180.8778875,
         242.1766518
     ], dtype=float)
-    # ---------------- Sheet 1: per test ----------------
+
+    K = len(BASELINE_C2)
+    TOL = 15.0
+
+    # ---------------- Sheet 1: per test (WIDE) ----------------
     ws1 = wb.active
     ws1.title = "Per Test Pulse Centers"
 
-    headers1 = ["Folder", "Capture", "Pulse", "CenterTime", "File"]
+    headers1 = (["Folder"]
+                + [f"C1_P{p}" for p in range(1, K + 1)]
+                + [f"C2_P{p}" for p in range(1, K + 1)])
     ws1.append(headers1)
     for c in range(1, len(headers1) + 1):
         ws1.cell(row=1, column=c).font = Font(bold=True)
 
-    for row in sorted(centers_rows, key=lambda x: (x[0], x[1], x[2], x[4])):
-        ws1.append(list(row))
+    # Build per-folder detected centers per capture
+    per_test = defaultdict(lambda: {1: [], 2: []})  # folder -> {cap -> list of detected centers}
+
+    # Keep pulse-ordering inside each file/run; we only need centers (not pulse indices) for alignment
+    # because align_centers_to_reference does 1-to-1 NN assignment vs BASELINE_C2.
+    temp = defaultdict(list)  # (folder, cap) -> list of (pulse_idx, center_time)
+    for folder, cap, pulse, center_t, fname in centers_rows:
+        cap = int(cap)
+        if cap not in (1, 2):
+            continue
+        temp[(folder, cap)].append((int(pulse), float(center_t)))
+
+    # Align each folder+capture to baseline so columns stay stable even if a pulse is missed
+    aligned_by_folder = defaultdict(lambda: {1: np.full(K, np.nan), 2: np.full(K, np.nan)})
+
+    for (folder, cap), items in temp.items():
+        items.sort(key=lambda x: x[0])              # sort by pulse index
+        detected_centers = [c for _, c in items]    # just center times in pulse order
+        aligned = align_centers_to_reference(detected_centers, BASELINE_C2, tol=TOL)  # len K
+        aligned_by_folder[folder][cap] = aligned
+
+    # Write rows (one row per folder)
+    for folder in sorted(aligned_by_folder.keys()):
+        row = [folder]
+
+        for cap in (1, 2):
+            arr = aligned_by_folder[folder][cap]
+            for v in arr:
+                row.append("" if not np.isfinite(v) else float(v))
+
+        ws1.append(row)
 
     ws1.freeze_panes = "A2"
 
@@ -425,21 +470,21 @@ def write_pulse_centers_excel(xlsx_path: Path, centers_rows):
             max_len = max(max_len, len(str(v)))
         ws1.column_dimensions[get_column_letter(col)].width = min(max_len + 2, 60)
 
-    # ---------------- Sheet 2: overall averages ----------------
-    ws2 = wb.create_sheet("Overall Avg Pulse Centers")
+    # ---------------- Sheet 2: overall summary (keep your current style) ----------------
+    ws2 = wb.create_sheet("Overall Median Pulse Centers")
 
-    headers2 = ["Capture", "Pulse", "AvgCenterTime", "N", "ReferenceCenter", "ToleranceUsed"]
+    headers2 = ["Capture", "Pulse", "MedianCenterTime", "N", "ReferenceCenter", "ToleranceUsed"]
     ws2.append(headers2)
     for c in range(1, len(headers2) + 1):
         ws2.cell(row=1, column=c).font = Font(bold=True)
 
-    TOL = 15.0
     matched = compute_overall_avg_centers_with_baseline(centers_rows, BASELINE_C2, tol=TOL)
 
     for cap in (1, 2):
-        for pulse_idx in range(1, len(BASELINE_C2) + 1):
+        for pulse_idx in range(1, K + 1):
             vals = matched.get((cap, pulse_idx), [])
-            avg = float(np.mean(vals)) if vals else ""
+            # use median if that's what you want; swap to np.mean(vals) if you prefer average
+            avg = float(np.median(vals)) if vals else ""
             n = len(vals)
             ws2.append([cap, pulse_idx, avg, n, float(BASELINE_C2[pulse_idx - 1]), TOL])
 
@@ -450,6 +495,7 @@ def write_pulse_centers_excel(xlsx_path: Path, centers_rows):
     ws2.column_dimensions["D"].width = 8
     ws2.column_dimensions["E"].width = 18
     ws2.column_dimensions["F"].width = 14
+
     wb.save(xlsx_path)
 
 def save_plot(out, iq_path: Path):
@@ -540,7 +586,7 @@ def infer_capture_num(iq_path: Path) -> int:
             return int(tokens[i + 1])
     return 1  # fallback
 
-def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist):
+def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist, filtering):
     if root_dir is None:
         print("No folder selected. Exiting.")
         return
@@ -572,7 +618,8 @@ def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDi
             iq_path,
             minimumMag=minimumMag,
             cluster=cluster,
-            clusterWeedOutDist=clusterWeedOutDist
+            clusterWeedOutDist=clusterWeedOutDist,
+            filtering=filtering
         )
         if out is None:
             print(f"[SKIP] {iq_path} (empty/too small)")
@@ -606,7 +653,7 @@ def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDi
     print(f"\nDone. CSV: {CSV_PATH}")
 
 if __name__ == "__main__":
-    root_dir, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist = parse_args_with_prompts()
+    root_dir, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist, filtering = parse_args_with_prompts()
 
 
 
@@ -617,4 +664,4 @@ if __name__ == "__main__":
             print("No folder selected. Exiting.")
             raise SystemExit(1)
 
-    bulk_run(root_dir, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist)
+    bulk_run(root_dir, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist, filtering)
