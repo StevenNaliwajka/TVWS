@@ -11,7 +11,7 @@ set -euo pipefail
 #
 # This script loops N runs, creates:
 #   Data/collect_<timestamp>/run_0001, run_0002, ...
-# And calls Codebase/Collection/tx.py for each run.
+# And calls Codebase/Collection/Local/tx_local.py for each run.
 # ---------------------------------------
 
 # ==========================
@@ -28,7 +28,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
 VENV_DIR="$PROJECT_ROOT/.venv"
-TX_PY="$PROJECT_ROOT/Codebase/Collection/tx.py"
+COLLECT_DIR="$PROJECT_ROOT/Codebase/Collection/Local"
+RX1_PY="$COLLECT_DIR/rx_1_local.py"
+RX2_PY="$COLLECT_DIR/rx_2_local.py"
+TX_PY="$COLLECT_DIR/tx_local.py"
 DATA_ROOT="$PROJECT_ROOT/Data"
 
 # Defaults (override via flags below)
@@ -82,7 +85,7 @@ Options:
   --rx2-serial SERIAL
   --tx-serial  SERIAL
 
-  --list-devices    (runs tx.py --list-devices and exits)
+  --list-devices    (runs tx_local.py --list-devices and exits)
 
 Notes:
   - If you have >1 HackRF plugged in, you SHOULD pass serials so each process grabs the right device.
@@ -134,13 +137,26 @@ if [[ ! -x "$PY" ]]; then
   exit 1
 fi
 if [[ ! -f "$TX_PY" ]]; then
-  echo "[local_collect.sh][ERROR] tx.py not found at: $TX_PY"
+  echo "[local_collect.sh][ERROR] tx_local.py not found at: $TX_PY"
   exit 1
 fi
+
+if [[ ! -f "$RX1_PY" ]]; then
+  echo "[local_collect.sh][WARN] rx_1_local.py not found at: $RX1_PY"
+  echo "[local_collect.sh][WARN] tx_local.py may fail if it imports RX1 script by path."
+fi
+
+if [[ ! -f "$RX2_PY" ]]; then
+  echo "[local_collect.sh][WARN] rx_2_local.py not found at: $RX2_PY"
+  echo "[local_collect.sh][WARN] tx_local.py may fail if it imports RX2 script by path."
+fi
+
 
 echo "[local_collect.sh] Project root : $PROJECT_ROOT"
 echo "[local_collect.sh] Using python : $PY"
 echo "[local_collect.sh] TX script    : $TX_PY"
+echo "[local_collect.sh] RX1 script   : $RX1_PY"
+echo "[local_collect.sh] RX2 script   : $RX2_PY"
 echo "[local_collect.sh] Data root    : $DATA_ROOT"
 echo "[local_collect.sh] Runs         : $RUNS"
 echo "[local_collect.sh] Freq/SR      : $FREQ / $SR"
@@ -205,7 +221,7 @@ for i in $(seq 1 "$RUNS"); do
   echo "[local_collect.sh] Run dir: $RUN_DIR"
   echo "[local_collect.sh] Start  : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-  # Build tx.py args
+  # Build tx_local.py args
   TX_ARGS=(
     --save-dir "$RUN_DIR"
     --freq "$FREQ"
@@ -231,7 +247,7 @@ for i in $(seq 1 "$RUNS"); do
   if [[ -n "$RX2_SERIAL" ]]; then TX_ARGS+=( --rx2-serial "$RX2_SERIAL" ); fi
   if [[ -n "$TX_SERIAL"  ]]; then TX_ARGS+=( --tx-serial  "$TX_SERIAL"  ); fi
 
-  echo "[local_collect.sh] tx.py args  : ${TX_ARGS[*]}"
+  echo "[local_collect.sh] tx_local.py args  : ${TX_ARGS[*]}"
 
   set +e
   sudo -E "$PY" "$TX_PY" "${TX_ARGS[@]}"
