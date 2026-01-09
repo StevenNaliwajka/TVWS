@@ -225,17 +225,20 @@ def install_pip_packages(vpy: Path, pip_pkgs: list[str]) -> None:
 # -----------------------------
 
 def detect_project_root(script_dir: Path) -> Path:
-    """
-    If script_dir = <root>/Codebase/Setup, then project_root = <root>.
-    That is two levels up from Setup.
-    """
-    # script_dir parents:
-    # 0: Setup
-    # 1: Codebase
-    # 2: <project-root>
-    if len(script_dir.parents) < 3:
-        return script_dir.parents[0]
-    return script_dir.parents[2]
+    # Normal expected layout: <root>/Codebase/Setup
+    if script_dir.name == "Setup" and script_dir.parent.name == "Codebase":
+        return script_dir.parent.parent
+
+    # If someone runs a copied/moved script, try to find a real root by marker file
+    for p in [script_dir, *script_dir.parents]:
+        if (p / "Codebase" / "Setup" / "requirements.json").is_file():
+            return p
+
+    raise RuntimeError(
+        f"Could not detect project root from script location: {script_dir}. "
+        f"Run with --project-root /path/to/TVWS"
+    )
+
 
 
 # -----------------------------
