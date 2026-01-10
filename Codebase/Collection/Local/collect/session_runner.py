@@ -268,8 +268,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--runs", type=int, default=1, help="Number of runs (default: 1)")
     ap.add_argument("--sample-rate", type=int, default=20_000_000, help="Sample rate (Hz)")
     ap.add_argument("--freq", type=int, default=520_000_000, help="Center frequency (Hz)")
-    ap.add_argument("--lna", type=int, default=8, help="RX LNA gain")
-    ap.add_argument("--vga", type=int, default=8, help="RX VGA gain")
+    ap.add_argument("--lna", type=int, default=32, help="RX LNA gain")
+    ap.add_argument("--vga", type=int, default=32, help="RX VGA gain")
     ap.add_argument("--num-samples", type=int, default=7_000, help="Number of IQ samples")
 
     ap.add_argument("--rx1-serial", default=None, help="HackRF serial for RX1")
