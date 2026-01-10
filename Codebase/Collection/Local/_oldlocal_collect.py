@@ -19,7 +19,6 @@ Notes:
 
 import argparse
 import json
-import os
 import random
 import re
 import shutil
@@ -797,55 +796,17 @@ def run_session(cfg: SessionConfig, config_path: Optional[Path] = None) -> Path:
 # CLI
 # --------------------------------------------------------------------------------------
 
-# ---- CLI Defaults (edit these, not the argparse calls) ----
-# These defaults are used when you do NOT pass the flag on the command line.
-#
-# For serials, you can optionally set environment variables instead of passing args:
-#   TVWS_RX1_SERIAL, TVWS_RX2_SERIAL, TVWS_TX_SERIAL
-DEFAULT_RUNS = 1
-DEFAULT_SAMPLE_RATE_HZ = 20_000_000
-DEFAULT_CENTER_FREQ_HZ = 520_000_000
-DEFAULT_NUM_SAMPLES = 7_000
-
-DEFAULT_LNA_DB = 32
-DEFAULT_VGA_DB = 32
-
-DEFAULT_TX_AMP_DB = 45
-DEFAULT_RF_AMP = True
-DEFAULT_ANTENNA_POWER = False
-
-DEFAULT_PULSE_IQ = "/opt/TVWS/Codebase/Collection/pilot.iq"
-
-DEFAULT_SAFETY_MARGIN_S = 1.0
-DEFAULT_RX_READY_TIMEOUT_S = 0.5
-DEFAULT_TX_WAIT_TIMEOUT_S = 10.0
-DEFAULT_HW_TRIGGER = True  # RX uses -H unless you pass --no-hw-trigger
-
-ENV_RX1_SERIAL = "0000000000000000930c64dc292c35c3"
-ENV_RX2_SERIAL = "000000000000000087c867dc2b54905f"
-ENV_TX_SERIAL  = "0000000000000000930c64dc2a0a66c3"
-
-
-def _env_serial(name: str) -> Optional[str]:
-    v = os.environ.get(name)
-    v = v.strip() if isinstance(v, str) else v
-    return v if v else None
-
-
 def build_arg_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(
-        description="One-machine collection runner (2 RX + 1 TX HackRF on same host).",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
+    ap = argparse.ArgumentParser(description="One-machine collection runner (2 RX + 1 TX HackRF on same host).")
 
-    ap.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="Number of runs (default: 1)")
-    ap.add_argument("--sample-rate", type=int, default=DEFAULT_SAMPLE_RATE_HZ, help="Sample rate (Hz)")
-    ap.add_argument("--freq", type=int, default=DEFAULT_CENTER_FREQ_HZ, help="Center frequency (Hz)")
-    ap.add_argument("--num-samples", type=int, default=DEFAULT_NUM_SAMPLES, help="Number of IQ samples")
+    ap.add_argument("--runs", type=int, default=1, help="Number of runs (default: 1)")
+    ap.add_argument("--sample-rate", type=int, default=20_000_000, help="Sample rate (Hz)")
+    ap.add_argument("--freq", type=int, default=520_000_000, help="Center frequency (Hz)")
+    ap.add_argument("--num-samples", type=int, default=7_000, help="Number of IQ samples")
 
     # common RX gains + per-RX overrides
-    ap.add_argument("--lna", type=int, default=DEFAULT_LNA_DB, help="Default RX LNA gain")
-    ap.add_argument("--vga", type=int, default=DEFAULT_VGA_DB, help="Default RX VGA gain")
+    ap.add_argument("--lna", type=int, default=32, help="Default RX LNA gain")
+    ap.add_argument("--vga", type=int, default=32, help="Default RX VGA gain")
     ap.add_argument("--rx1-lna", type=int, default=None, help="Override RX1 LNA gain")
     ap.add_argument("--rx1-vga", type=int, default=None, help="Override RX1 VGA gain")
     ap.add_argument("--rx2-lna", type=int, default=None, help="Override RX2 LNA gain")
@@ -864,30 +825,29 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--config-path", default=None, help="Path to user-managed config JSON (snapshotted per-run)")
 
     # TX knobs
-    ap.add_argument("--amp", type=int, default=DEFAULT_TX_AMP_DB, help="TX amp (-x) (default: 45)")
+    ap.add_argument("--amp", type=int, default=45, help="TX amp (-x) (default: 45)")
 
     ap.add_argument("--rf-amp", dest="rf_amp", action="store_true")
     ap.add_argument("--no-rf-amp", dest="rf_amp", action="store_false")
-    ap.set_defaults(rf_amp=DEFAULT_RF_AMP)
+    ap.set_defaults(rf_amp=True)
 
     ap.add_argument("--antenna-power", dest="antenna_power", action="store_true")
     ap.add_argument("--no-antenna-power", dest="antenna_power", action="store_false")
-    ap.set_defaults(antenna_power=DEFAULT_ANTENNA_POWER)
+    ap.set_defaults(antenna_power=False)
 
-    ap.add_argument("--pulse", default=DEFAULT_PULSE_IQ, help="TX IQ file")
+    ap.add_argument("--pulse", default="/opt/TVWS/Codebase/Collection/pilot.iq", help="TX IQ file")
 
     # timings
-    ap.add_argument("--safety-margin", type=float, default=DEFAULT_SAFETY_MARGIN_S, help="Extra seconds beyond capture time to wait")
+    ap.add_argument("--safety-margin", type=float, default=1.0, help="Extra seconds beyond capture time to wait")
     ap.add_argument(
         "--rx-ready-timeout",
         type=float,
-        default=DEFAULT_RX_READY_TIMEOUT_S,
+        default=0.5,
         help="Seconds before considering an RX 'ready' even if hackrf is silent (default 0.5)",
     )
-    ap.add_argument("--tx-wait-timeout", type=float, default=DEFAULT_TX_WAIT_TIMEOUT_S,
+    ap.add_argument("--tx-wait-timeout", type=float, default=10.0,
                     help="Max seconds to wait for ALL enabled RX ready before TX (default 10.0)")
     ap.add_argument("--no-hw-trigger", action="store_true")
-    ap.set_defaults(no_hw_trigger=(not DEFAULT_HW_TRIGGER))
 
     # readiness patterns
     ap.add_argument(
@@ -907,18 +867,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     ap = build_arg_parser()
     args = ap.parse_args(argv)
-
-    # Apply env var serial defaults (lets you omit serial args on the CLI)
-    # Example:
-    #   export TVWS_RX1_SERIAL=000...
-    #   export TVWS_RX2_SERIAL=000...
-    #   export TVWS_TX_SERIAL=000...
-    if args.rx1_serial is None:
-        args.rx1_serial = _env_serial(ENV_RX1_SERIAL)
-    if args.rx2_serial is None:
-        args.rx2_serial = _env_serial(ENV_RX2_SERIAL)
-    if args.tx_serial is None:
-        args.tx_serial = _env_serial(ENV_TX_SERIAL)
 
     if args.list_devices:
         rc, out = run_cmd_capture_text(["hackrf_info"])
