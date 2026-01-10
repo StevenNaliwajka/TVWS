@@ -802,7 +802,7 @@ def run_session(cfg: SessionConfig, config_path: Optional[Path] = None) -> Path:
 #
 # For serials, you can optionally set environment variables instead of passing args:
 #   TVWS_RX1_SERIAL, TVWS_RX2_SERIAL, TVWS_TX_SERIAL
-DEFAULT_RUNS = 1
+DEFAULT_RUNS = 1000
 DEFAULT_SAMPLE_RATE_HZ = 20_000_000
 DEFAULT_CENTER_FREQ_HZ = 520_000_000
 DEFAULT_NUM_SAMPLES = 7_000
