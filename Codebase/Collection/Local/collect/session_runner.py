@@ -1,5 +1,7 @@
 from __future__ import annotations
 import argparse
+import json
+import shutil
 import os
 import random
 import signal
@@ -12,6 +14,7 @@ from typing import Optional, List, Tuple
 from Codebase.Collection.Local.tx.controller_lib import run_capture, CapturePaths
 from Codebase.Collection.Local.util.subprocess_util import run_cmd_capture_text, require_tool
 from Codebase.Collection.Local.util.hackrf_process import wait_hackrf_free, cleanup_hackrf_all, list_hackrf_transfer_procs
+from Codebase.Collection.Local.run_report import generate_run_report
 
 def _session_stamp() -> str:
     ts = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
@@ -57,7 +60,66 @@ def preflight_check_serials(rx1: Optional[str], rx2: Optional[str], tx: Optional
     if missing:
         raise RuntimeError("; ".join(missing))
 
-def run_session(cfg: SessionConfig) -> Path:
+
+def build_user_config(cfg: SessionConfig, project_root: Path) -> dict:
+    """
+    Build a JSON-serializable dict of all user-managed knobs used for this session.
+    This is what will be embedded into each per-run run_report.json.
+    """
+    return {
+        "paths": {
+            "project_root": str(project_root),
+            "data_root": str(cfg.data_root),
+            "pulse_path": str(cfg.pulse),
+        },
+        "session": {
+            "runs": cfg.runs,
+            "tag": cfg.tag,
+        },
+        "devices": {
+            "mapping_mode": "serial",
+            "rx_1": {"serial": cfg.rx1_serial, "index": None},
+            "rx_2": {"serial": cfg.rx2_serial, "index": None},
+            "tx": {"serial": cfg.tx_serial, "index": None},
+        },
+        "rf": {
+            "center_freq_hz": cfg.freq,
+            "sample_rate_hz": cfg.sample_rate,
+            "num_samples": cfg.num_samples,
+        },
+        "rx_1": {
+            "enabled": True,
+            "lna_db": cfg.lna,
+            "vga_db": cfg.vga,
+            "capture_mode": "samples",
+            "num_samples": cfg.num_samples,
+            "output_pattern": "{prefix}_capture_1.iq",
+            "log_filename": "rx1.log",
+        },
+        "rx_2": {
+            "enabled": True,
+            "lna_db": cfg.lna,
+            "vga_db": cfg.vga,
+            "capture_mode": "samples",
+            "num_samples": cfg.num_samples,
+            "output_pattern": "{prefix}_capture_2.iq",
+            "log_filename": "rx2.log",
+        },
+        "tx": {
+            "enabled": True,
+            "txvga_db": cfg.amp,
+            "rf_amp": cfg.rf_amp,
+            "antenna_power": cfg.antenna_power,
+            "pulse_path": str(cfg.pulse),
+            "safety_margin": cfg.safety_margin,
+            "rx_ready_timeout": cfg.rx_ready_timeout,
+            "tx_wait_timeout": cfg.tx_wait_timeout,
+            "hw_trigger": cfg.hw_trigger,
+            "log_filename": "tx.log",
+        },
+    }
+
+def run_session(cfg: SessionConfig, config_path: Optional[Path] = None) -> Path:
     # Preflight tools
     require_tool("hackrf_transfer")
     require_tool("hackrf_info")
@@ -160,6 +222,41 @@ def run_session(cfg: SessionConfig) -> Path:
 
         print(f"[local_collect.py] End    : {datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}")
         print(f"[local_collect.py] Exit code: {rc}")
+        # Per-run report (JSON + TXT)
+        # - Writes: run_report.json + run_report.txt
+        # - If a --config-path was provided, snapshot it into the run folder and include it in the report
+        # - Also embeds the *effective* values used for this run under report.extra.effective_config
+        try:
+            template_cfg = None
+            if config_path and config_path.exists():
+                try:
+                    template_cfg = json.loads(config_path.read_text(encoding="utf-8"))
+                except Exception as _e:
+                    template_cfg = None
+                try:
+                    shutil.copy2(str(config_path), str(run_dir / "collection_config.json"))
+                except Exception:
+                    pass
+
+            effective_cfg = build_user_config(cfg, project_root=Path.cwd())
+
+            generate_run_report(
+                run_dir=run_dir,
+                config=(template_cfg or effective_cfg),
+                config_path=config_path,
+                extra={
+                    "run_index": i,
+                    "run_id": run_id,
+                    "exit_code": rc,
+                    "session_dir": str(session_dir),
+                    "capture_prefix": prefix,
+                    "template_loaded": (template_cfg is not None),
+                    "effective_config": effective_cfg,
+                },
+                write_txt=True,
+            )
+        except Exception as e:
+            print(f"[local_collect.py][WARN] Failed to write run report: {type(e).__name__}: {e}")
 
     print()
     print(f"[local_collect.py] Done. Session: {session_dir}")
@@ -181,6 +278,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     ap.add_argument("--data-root", default=None, help="Data output root (default: <PROJECT_ROOT>/Data)")
     ap.add_argument("--tag", default="", help="Optional tag appended to session folder name")
+    ap.add_argument("--config-path", default=None, help="Path to user-managed config JSON (recorded in per-run reports)")
 
     # Optional advanced knobs (kept, but not required)
     ap.add_argument("--amp", type=int, default=45, help="TX amp (-x) (default: 45)")
@@ -208,6 +306,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # The wrapper script will run this with correct working directory anyway.
     project_root = Path.cwd()
     data_root = Path(args.data_root).expanduser().resolve() if args.data_root else (project_root / "Data")
+    resolved_config_path = Path(args.config_path).expanduser().resolve() if args.config_path else None
 
     cfg = SessionConfig(
         runs=args.runs,
@@ -231,5 +330,5 @@ def main(argv: Optional[List[str]] = None) -> int:
         hw_trigger=not args.no_hw_trigger,
     )
 
-    run_session(cfg)
+    run_session(cfg, config_path=resolved_config_path)
     return 0
