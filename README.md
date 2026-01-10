@@ -21,3 +21,7 @@ Performs 3 filters on the signal in series.
 - Update "Config/metadata.json"
 
 - Can be run by clicking on "run.bat"
+
+
+
+sudo apt install -y hackrf

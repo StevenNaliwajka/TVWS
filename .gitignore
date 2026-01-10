@@ -9,6 +9,7 @@ Logs/
 # C extensions
 *.so
 data/
+Data/
 # Distribution / packaging
 .Python
 build/
