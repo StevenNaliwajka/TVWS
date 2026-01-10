@@ -25,3 +25,8 @@ Performs 3 filters on the signal in series.
 
 
 sudo apt install -y hackrf
+
+bash local_collect.sh --runs 1000 --no-hw-trigger \
+  --rx1-serial 0000000000000000930c64dc292c35c3 \
+  --rx2-serial 000000000000000087c867dc2b54905f \
+  --tx-serial  0000000000000000930c64dc2a0a66c3
