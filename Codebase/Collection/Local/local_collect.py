@@ -23,10 +23,16 @@ DEFAULT_SAMPLE_RATE_HZ = 20_000_000
 DEFAULT_CENTER_FREQ_HZ = 520_000_000
 DEFAULT_NUM_SAMPLES = 7_000
 
-DEFAULT_LNA_DB = 32
-DEFAULT_VGA_DB = 32
+DEFAULT_LNA_DB = 16
+DEFAULT_VGA_DB = 16
 
-DEFAULT_TX_AMP_DB = 45
+# Per-RX defaults (used when you do NOT pass --lna/--vga and do NOT pass --rx*-lna/--rx*-vga)
+DEFAULT_RX1_LNA_DB = 16
+DEFAULT_RX1_VGA_DB = 16
+DEFAULT_RX2_LNA_DB = 32
+DEFAULT_RX2_VGA_DB = 32
+
+DEFAULT_TX_AMP_DB = 16
 DEFAULT_RF_AMP = True
 DEFAULT_ANTENNA_POWER = False
 
@@ -51,8 +57,17 @@ class RunConfig:
     sample_rate_hz: int
     freq_hz: int
     num_samples: int
+
+    # "Global" RX gains (recorded for reference; may be overridden per-RX)
     lna_db: int
     vga_db: int
+
+    # Effective per-RX gains actually used for capture
+    rx1_lna_db: int
+    rx1_vga_db: int
+    rx2_lna_db: int
+    rx2_vga_db: int
+
     rx1_serial: str
     rx2_serial: str
     tx_serial: str
@@ -83,6 +98,20 @@ def _unique_session_name(tag: str) -> str:
     suffix = f"{os.getpid()}_{(time.monotonic_ns() % 10_000):04d}"
     base = f"Collection_{_now_stamp()}_{suffix}"
     return f"{base}_{tag}" if tag else base
+
+
+def _flag_present(argv: list[str], *names: str) -> bool:
+    """
+    Return True if any of the flags in `names` was explicitly present in argv.
+    Supports both: --flag value  and  --flag=value
+    """
+    for n in names:
+        if n in argv:
+            return True
+        prefix = n + "="
+        if any(a.startswith(prefix) for a in argv):
+            return True
+    return False
 
 
 def _require_tool(name: str) -> str:
@@ -276,6 +305,7 @@ def run_collection(cfg: RunConfig) -> Path:
     print(f"[INFO] Session dir  : {session_dir}")
     print(f"[INFO] Runs         : {cfg.runs}")
     print(f"[INFO] HW trigger   : {cfg.hw_trigger}")
+    print(f"[INFO] RX gains     : global LNA/VGA={cfg.lna_db}/{cfg.vga_db}  |  RX1={cfg.rx1_lna_db}/{cfg.rx1_vga_db}  RX2={cfg.rx2_lna_db}/{cfg.rx2_vga_db}")
 
     if not pulse_path.exists():
         raise SystemExit(f"[ERROR] Pulse IQ file not found: {pulse_path}")
@@ -306,8 +336,8 @@ def run_collection(cfg: RunConfig) -> Path:
             sample_rate_hz=cfg.sample_rate_hz,
             freq_hz=cfg.freq_hz,
             num_samples=cfg.num_samples,
-            lna_db=cfg.lna_db,
-            vga_db=cfg.vga_db,
+            lna_db=cfg.rx1_lna_db,
+            vga_db=cfg.rx1_vga_db,
             hw_trigger=cfg.hw_trigger,
         )
         rx2_cmd = build_rx_cmd(
@@ -316,8 +346,8 @@ def run_collection(cfg: RunConfig) -> Path:
             sample_rate_hz=cfg.sample_rate_hz,
             freq_hz=cfg.freq_hz,
             num_samples=cfg.num_samples,
-            lna_db=cfg.lna_db,
-            vga_db=cfg.vga_db,
+            lna_db=cfg.rx2_lna_db,
+            vga_db=cfg.rx2_vga_db,
             hw_trigger=cfg.hw_trigger,
         )
         tx_cmd = build_tx_cmd(
@@ -429,6 +459,10 @@ def parse_args() -> RunConfig:
     ap.add_argument("--freq", type=int, default=DEFAULT_CENTER_FREQ_HZ, help="Center frequency (Hz)")
     ap.add_argument("--lna", type=int, default=DEFAULT_LNA_DB, help="RX LNA gain (dB)")
     ap.add_argument("--vga", type=int, default=DEFAULT_VGA_DB, help="RX VGA gain (dB)")
+    ap.add_argument("--rx1-lna", type=int, default=None, help="Override RX1 LNA gain (dB)")
+    ap.add_argument("--rx1-vga", type=int, default=None, help="Override RX1 VGA gain (dB)")
+    ap.add_argument("--rx2-lna", type=int, default=None, help="Override RX2 LNA gain (dB)")
+    ap.add_argument("--rx2-vga", type=int, default=None, help="Override RX2 VGA gain (dB)")
     ap.add_argument("--num-samples", type=int, default=DEFAULT_NUM_SAMPLES, help="Number of IQ samples")
 
     ap.add_argument("--rx1-serial", default=DEFAULT_RX1_SERIAL, help="HackRF serial for RX1")
@@ -456,6 +490,21 @@ def parse_args() -> RunConfig:
 
     a = ap.parse_args()
 
+    # Determine if the global --lna/--vga flags were explicitly set.
+    # This lets per-RX defaults differ, while still allowing a single global override.
+    argv = sys.argv[1:]
+    lna_was_set = _flag_present(argv, "--lna")
+    vga_was_set = _flag_present(argv, "--vga")
+
+    # Effective per-RX gains (precedence):
+    # 1) --rx*-lna/--rx*-vga if provided
+    # 2) --lna/--vga if explicitly provided
+    # 3) DEFAULT_RX*_LNA_DB / DEFAULT_RX*_VGA_DB
+    rx1_lna = a.rx1_lna if a.rx1_lna is not None else (a.lna if lna_was_set else DEFAULT_RX1_LNA_DB)
+    rx1_vga = a.rx1_vga if a.rx1_vga is not None else (a.vga if vga_was_set else DEFAULT_RX1_VGA_DB)
+    rx2_lna = a.rx2_lna if a.rx2_lna is not None else (a.lna if lna_was_set else DEFAULT_RX2_LNA_DB)
+    rx2_vga = a.rx2_vga if a.rx2_vga is not None else (a.vga if vga_was_set else DEFAULT_RX2_VGA_DB)
+
     return RunConfig(
         runs=a.runs,
         sample_rate_hz=a.sample_rate,
@@ -463,6 +512,10 @@ def parse_args() -> RunConfig:
         num_samples=a.num_samples,
         lna_db=a.lna,
         vga_db=a.vga,
+        rx1_lna_db=int(rx1_lna),
+        rx1_vga_db=int(rx1_vga),
+        rx2_lna_db=int(rx2_lna),
+        rx2_vga_db=int(rx2_vga),
         rx1_serial=a.rx1_serial,
         rx2_serial=a.rx2_serial,
         tx_serial=a.tx_serial,

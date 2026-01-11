@@ -61,6 +61,7 @@ class HackRFAnalysis(gr.top_block, Qt.QWidget):
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 20e6
+        self.num_samps = num_samps = 7000
         self.center_freq = center_freq = 491e6
 
         ##################################################
@@ -196,8 +197,9 @@ class HackRFAnalysis(gr.top_block, Qt.QWidget):
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
         self.blocks_throttle2_0 = blocks.throttle( gr.sizeof_gr_complex*1, samp_rate, True, 0 if "auto" == "auto" else max( int(float(0.1) * samp_rate) if "auto" == "time" else int(0.1), 1) )
+        self.blocks_head_0 = blocks.head(gr.sizeof_gr_complex*1, num_samps)
         self.blocks_float_to_complex_0 = blocks.float_to_complex(1)
-        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_char*1, '/home/kevin/PycharmProjects/TVWS/data/OneDrive_1_12-2-2025/10 Feet/20251119_23-24-44_1763612684_rx2_10ft14030_tx044.iq', False, 0, 0)
+        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_char*1, '/home/kevin/PycharmProjects/TVWS/Data/Collection_2026-01-10T22-23-35_14825_5102/run_0003/rx1.iq', False, 0, 0)
         self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
         self.blocks_deinterleave_0 = blocks.deinterleave(gr.sizeof_char*1, 1)
         self.blocks_char_to_float_1 = blocks.char_to_float(1, 1)
@@ -213,9 +215,10 @@ class HackRFAnalysis(gr.top_block, Qt.QWidget):
         self.connect((self.blocks_deinterleave_0, 1), (self.blocks_char_to_float_1, 0))
         self.connect((self.blocks_file_source_0, 0), (self.blocks_deinterleave_0, 0))
         self.connect((self.blocks_float_to_complex_0, 0), (self.blocks_throttle2_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.qtgui_freq_sink_x_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.qtgui_time_sink_x_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.qtgui_waterfall_sink_x_0, 0))
+        self.connect((self.blocks_head_0, 0), (self.qtgui_freq_sink_x_0, 0))
+        self.connect((self.blocks_head_0, 0), (self.qtgui_time_sink_x_0, 0))
+        self.connect((self.blocks_head_0, 0), (self.qtgui_waterfall_sink_x_0, 0))
+        self.connect((self.blocks_throttle2_0, 0), (self.blocks_head_0, 0))
 
 
     def closeEvent(self, event):
@@ -235,6 +238,13 @@ class HackRFAnalysis(gr.top_block, Qt.QWidget):
         self.qtgui_freq_sink_x_0.set_frequency_range(self.center_freq, self.samp_rate)
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
         self.qtgui_waterfall_sink_x_0.set_frequency_range(self.center_freq, self.samp_rate)
+
+    def get_num_samps(self):
+        return self.num_samps
+
+    def set_num_samps(self, num_samps):
+        self.num_samps = num_samps
+        self.blocks_head_0.set_length(self.num_samps)
 
     def get_center_freq(self):
         return self.center_freq
