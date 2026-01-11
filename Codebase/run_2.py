@@ -3,20 +3,27 @@ from pathlib import Path
 
 
 from Codebase.FileIO.collect_all_data import load_signal_grid
+from Codebase.FileIO.load_hackrf_iq import load_hackrf_iq
 
 from Codebase.Object.metadata_object import MetaDataObj
 from Codebase.PeakDetection.Type1.detect_peaks_in_iq import detect_peaks_in_iq
+from Codebase.Plot.plot_freq_time_headmap import plot_freq_time_heatmap
 from Codebase.TOF.Type3.compute_relative_tof import compute_relative_tof
 from Codebase.TOF.Type4.compute_tof import compute_tof
 from Codebase.process_signal import process_signal
+from Codebase.Filter.filter_singal import filter_signal
+
 
 
 def run():
     metadata = MetaDataObj()
     data_dir = Path(__file__).resolve().parents[1] / "Data"
     signal_grid = load_signal_grid(data_dir)
+    data_path = "/home/kevin/PycharmProjects/TVWS/Data/Collection_2026-01-10T21-16-11_26354_2292/run_0015/rx2.iq"
+    iq = load_hackrf_iq(data_path)
+    #iq = filter_signal(metadata, iq)
+    plot_freq_time_heatmap(metadata, iq)
 
-    signal = filter_signal(metadata, iq)
 
     wired_signal = signal_grid[-1][0]  # same wired reference for all
     compute_tof(metadata, wired_signal)  # do once

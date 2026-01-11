@@ -265,16 +265,16 @@ def run_session(cfg: SessionConfig, config_path: Optional[Path] = None) -> Path:
 def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="One-machine collection runner (3 HackRFs on same host).")
 
-    ap.add_argument("--runs", type=int, default=1, help="Number of runs (default: 1)")
+    ap.add_argument("--runs", type=int, default=100, help="Number of runs (default: 1)")
     ap.add_argument("--sample-rate", type=int, default=20_000_000, help="Sample rate (Hz)")
     ap.add_argument("--freq", type=int, default=520_000_000, help="Center frequency (Hz)")
-    ap.add_argument("--lna", type=int, default=8, help="RX LNA gain")
-    ap.add_argument("--vga", type=int, default=8, help="RX VGA gain")
+    ap.add_argument("--lna", type=int, default=32, help="RX LNA gain")
+    ap.add_argument("--vga", type=int, default=32, help="RX VGA gain")
     ap.add_argument("--num-samples", type=int, default=7_000, help="Number of IQ samples")
 
-    ap.add_argument("--rx1-serial", default=None, help="HackRF serial for RX1")
-    ap.add_argument("--rx2-serial", default=None, help="HackRF serial for RX2")
-    ap.add_argument("--tx-serial", default=None, help="HackRF serial for TX")
+    ap.add_argument("--rx1-serial", default= "0000000000000000930c64dc292c35c3", help="HackRF serial for RX1")
+    ap.add_argument("--rx2-serial", default= "000000000000000087c867dc2b54905f", help="HackRF serial for RX2")
+    ap.add_argument("--tx-serial", default= "0000000000000000930c64dc2a0a66c3" , help="HackRF serial for TX")
 
     ap.add_argument("--data-root", default=None, help="Data output root (default: <PROJECT_ROOT>/Data)")
     ap.add_argument("--tag", default="", help="Optional tag appended to session folder name")
@@ -290,8 +290,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-antenna-power", dest="antenna_power", action="store_false")
     ap.set_defaults(antenna_power=False)
 
-    ap.add_argument("--pulse", default="/opt/TVWS/Codebase/Collection/pilot.iq", help="TX IQ file")
-    ap.add_argument("--safety-margin", type=float, default=1.0)
+    ap.add_argument("--pulse", default="/home/kevin/PycharmProjects/TVWS/Codebase/Collection/pulse.iq", help="TX IQ file")
+    ap.add_argument("--safety-margin", type=float, default=0)
     ap.add_argument("--rx-ready-timeout", type=float, default=0.5)
     ap.add_argument("--tx-wait-timeout", type=float, default=10.0)
     ap.add_argument("--no-hw-trigger", action="store_true")
