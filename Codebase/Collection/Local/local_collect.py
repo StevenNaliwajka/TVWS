@@ -823,7 +823,7 @@ DEFAULT_TX_AMP_DB = 45
 DEFAULT_RF_AMP = True
 DEFAULT_ANTENNA_POWER = False
 
-DEFAULT_PULSE_IQ = "/opt/TVWS/Codebase/Collection/pilot.iq"
+DEFAULT_PULSE_IQ = "/opt/TVWS/Codebase/Collection/pulse.iq"
 
 DEFAULT_SAFETY_MARGIN_S = 0
 DEFAULT_RX_READY_TIMEOUT_S = 0.5
