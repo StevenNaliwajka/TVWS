@@ -33,6 +33,67 @@ from pathlib import Path
 from threading import Event, Thread, Timer
 from typing import Any, Dict, List, Optional, Tuple
 
+# --------------------------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------------------------
+
+# ---- CLI Defaults (edit these, not the argparse calls) ----
+# These defaults are used when you do NOT pass the flag on the command line.
+#
+# For serials, you can optionally set environment variables instead of passing args:
+#   TVWS_RX1_SERIAL, TVWS_RX2_SERIAL, TVWS_TX_SERIAL
+
+
+
+
+DEFAULT_RUNS = 1000
+DEFAULT_SAMPLE_RATE_HZ = 20_000_000
+DEFAULT_CENTER_FREQ_HZ = 520_000_000
+DEFAULT_NUM_SAMPLES = 7_000
+
+DEFAULT_LNA_DB = 32
+DEFAULT_VGA_DB = 32
+
+# Per-RX defaults (so *every* flag has a default value)
+DEFAULT_RX1_LNA_DB = DEFAULT_LNA_DB
+DEFAULT_RX1_VGA_DB = DEFAULT_VGA_DB
+DEFAULT_RX2_LNA_DB = DEFAULT_LNA_DB
+DEFAULT_RX2_VGA_DB = DEFAULT_VGA_DB
+
+DEFAULT_ENABLE_RX1 = True
+DEFAULT_ENABLE_RX2 = True
+
+DEFAULT_TX_AMP_DB = 45
+DEFAULT_RF_AMP = True
+DEFAULT_ANTENNA_POWER = False
+
+DEFAULT_PULSE_IQ = "/opt/TVWS/Codebase/Collection/pilot.iq"
+
+DEFAULT_SAFETY_MARGIN_S = 1.0
+DEFAULT_RX_READY_TIMEOUT_S = 0.5
+DEFAULT_TX_WAIT_TIMEOUT_S = 10.0
+DEFAULT_HW_TRIGGER = True  # RX uses -H unless you pass --no-hw-trigger
+
+# Output defaults
+DEFAULT_DATA_ROOT = "/opt/TVWS/Data"
+DEFAULT_TAG = ""
+DEFAULT_CONFIG_PATH = ""  # "" => treat as "not provided" in your runtime logic
+
+# Ready patterns default (edit to match what your RX scripts print)
+DEFAULT_READY_PATTERNS = [
+    r"\barmed\b",
+]
+
+# Serial env-var names + fallback defaults (so *every* flag has a default value)
+ENVVAR_RX1_SERIAL = "TVWS_RX1_SERIAL"
+ENVVAR_RX2_SERIAL = "TVWS_RX2_SERIAL"
+ENVVAR_TX_SERIAL  = "TVWS_TX_SERIAL"
+
+DEFAULT_RX1_SERIAL = "0000000000000000930c64dc292c35c3"
+DEFAULT_RX2_SERIAL = "000000000000000087c867dc2b54905f"
+DEFAULT_TX_SERIAL  = "0000000000000000930c64dc2a0a66c3"
+
+
 
 # --------------------------------------------------------------------------------------
 # Bootstrap: ensure repo root on sys.path
@@ -793,65 +854,6 @@ def run_session(cfg: SessionConfig, config_path: Optional[Path] = None) -> Path:
     return session_dir
 
 
-# --------------------------------------------------------------------------------------
-# CLI
-# --------------------------------------------------------------------------------------
-
-# ---- CLI Defaults (edit these, not the argparse calls) ----
-# These defaults are used when you do NOT pass the flag on the command line.
-#
-# For serials, you can optionally set environment variables instead of passing args:
-#   TVWS_RX1_SERIAL, TVWS_RX2_SERIAL, TVWS_TX_SERIAL
-
-
-
-
-DEFAULT_RUNS = 1000
-DEFAULT_SAMPLE_RATE_HZ = 20_000_000
-DEFAULT_CENTER_FREQ_HZ = 520_000_000
-DEFAULT_NUM_SAMPLES = 7_000
-
-DEFAULT_LNA_DB = 32
-DEFAULT_VGA_DB = 32
-
-# Per-RX defaults (so *every* flag has a default value)
-DEFAULT_RX1_LNA_DB = DEFAULT_LNA_DB
-DEFAULT_RX1_VGA_DB = DEFAULT_VGA_DB
-DEFAULT_RX2_LNA_DB = DEFAULT_LNA_DB
-DEFAULT_RX2_VGA_DB = DEFAULT_VGA_DB
-
-DEFAULT_ENABLE_RX1 = True
-DEFAULT_ENABLE_RX2 = True
-
-DEFAULT_TX_AMP_DB = 45
-DEFAULT_RF_AMP = True
-DEFAULT_ANTENNA_POWER = False
-
-DEFAULT_PULSE_IQ = "/opt/TVWS/Codebase/Collection/pilot.iq"
-
-DEFAULT_SAFETY_MARGIN_S = 1.0
-DEFAULT_RX_READY_TIMEOUT_S = 0.5
-DEFAULT_TX_WAIT_TIMEOUT_S = 10.0
-DEFAULT_HW_TRIGGER = True  # RX uses -H unless you pass --no-hw-trigger
-
-# Output defaults
-DEFAULT_DATA_ROOT = "/opt/TVWS/Data"
-DEFAULT_TAG = ""
-DEFAULT_CONFIG_PATH = ""  # "" => treat as "not provided" in your runtime logic
-
-# Ready patterns default (edit to match what your RX scripts print)
-DEFAULT_READY_PATTERNS = [
-    r"\barmed\b",
-]
-
-# Serial env-var names + fallback defaults (so *every* flag has a default value)
-ENVVAR_RX1_SERIAL = "TVWS_RX1_SERIAL"
-ENVVAR_RX2_SERIAL = "TVWS_RX2_SERIAL"
-ENVVAR_TX_SERIAL  = "TVWS_TX_SERIAL"
-
-DEFAULT_RX1_SERIAL = "0000000000000000930c64dc292c35c3"
-DEFAULT_RX2_SERIAL = "000000000000000087c867dc2b54905f"
-DEFAULT_TX_SERIAL  = "0000000000000000930c64dc2a0a66c3"
 
 
 def _env_serial(name: str) -> Optional[str]:
