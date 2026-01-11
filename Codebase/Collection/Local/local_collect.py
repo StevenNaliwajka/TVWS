@@ -793,15 +793,15 @@ def run_session(cfg: SessionConfig, config_path: Optional[Path] = None) -> Path:
     return session_dir
 
 
-# --------------------------------------------------------------------------------------
-# CLI
-# --------------------------------------------------------------------------------------
-
 # ---- CLI Defaults (edit these, not the argparse calls) ----
 # These defaults are used when you do NOT pass the flag on the command line.
 #
 # For serials, you can optionally set environment variables instead of passing args:
 #   TVWS_RX1_SERIAL, TVWS_RX2_SERIAL, TVWS_TX_SERIAL
+
+
+
+
 DEFAULT_RUNS = 1000
 DEFAULT_SAMPLE_RATE_HZ = 20_000_000
 DEFAULT_CENTER_FREQ_HZ = 520_000_000
@@ -809,6 +809,15 @@ DEFAULT_NUM_SAMPLES = 7_000
 
 DEFAULT_LNA_DB = 32
 DEFAULT_VGA_DB = 32
+
+# Per-RX defaults (so *every* flag has a default value)
+DEFAULT_RX1_LNA_DB = DEFAULT_LNA_DB
+DEFAULT_RX1_VGA_DB = DEFAULT_VGA_DB
+DEFAULT_RX2_LNA_DB = DEFAULT_LNA_DB
+DEFAULT_RX2_VGA_DB = DEFAULT_VGA_DB
+
+DEFAULT_ENABLE_RX1 = True
+DEFAULT_ENABLE_RX2 = True
 
 DEFAULT_TX_AMP_DB = 45
 DEFAULT_RF_AMP = True
@@ -821,9 +830,24 @@ DEFAULT_RX_READY_TIMEOUT_S = 0.5
 DEFAULT_TX_WAIT_TIMEOUT_S = 10.0
 DEFAULT_HW_TRIGGER = True  # RX uses -H unless you pass --no-hw-trigger
 
-ENV_RX1_SERIAL = "0000000000000000930c64dc292c35c3"
-ENV_RX2_SERIAL = "000000000000000087c867dc2b54905f"
-ENV_TX_SERIAL  = "0000000000000000930c64dc2a0a66c3"
+# Output defaults
+DEFAULT_DATA_ROOT = "/opt/TVWS/Data"
+DEFAULT_TAG = ""
+DEFAULT_CONFIG_PATH = ""  # "" => treat as "not provided" in your runtime logic
+
+# Ready patterns default (edit to match what your RX scripts print)
+DEFAULT_READY_PATTERNS = [
+    r"\barmed\b",
+]
+
+# Serial env-var names + fallback defaults (so *every* flag has a default value)
+ENVVAR_RX1_SERIAL = "TVWS_RX1_SERIAL"
+ENVVAR_RX2_SERIAL = "TVWS_RX2_SERIAL"
+ENVVAR_TX_SERIAL  = "TVWS_TX_SERIAL"
+
+DEFAULT_RX1_SERIAL = "0000000000000000930c64dc292c35c3"
+DEFAULT_RX2_SERIAL = "000000000000000087c867dc2b54905f"
+DEFAULT_TX_SERIAL  = "0000000000000000930c64dc2a0a66c3"
 
 
 def _env_serial(name: str) -> Optional[str]:
@@ -838,33 +862,47 @@ def build_arg_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    ap.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="Number of runs (default: 1)")
+    ap.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="Number of runs")
     ap.add_argument("--sample-rate", type=int, default=DEFAULT_SAMPLE_RATE_HZ, help="Sample rate (Hz)")
     ap.add_argument("--freq", type=int, default=DEFAULT_CENTER_FREQ_HZ, help="Center frequency (Hz)")
     ap.add_argument("--num-samples", type=int, default=DEFAULT_NUM_SAMPLES, help="Number of IQ samples")
 
-    # common RX gains + per-RX overrides
+    # common RX gains + per-RX overrides (now with explicit defaults)
     ap.add_argument("--lna", type=int, default=DEFAULT_LNA_DB, help="Default RX LNA gain")
     ap.add_argument("--vga", type=int, default=DEFAULT_VGA_DB, help="Default RX VGA gain")
-    ap.add_argument("--rx1-lna", type=int, default=None, help="Override RX1 LNA gain")
-    ap.add_argument("--rx1-vga", type=int, default=None, help="Override RX1 VGA gain")
-    ap.add_argument("--rx2-lna", type=int, default=None, help="Override RX2 LNA gain")
-    ap.add_argument("--rx2-vga", type=int, default=None, help="Override RX2 VGA gain")
-    ap.add_argument("--no-rx1", action="store_true", help="Disable RX1 capture")
-    ap.add_argument("--no-rx2", action="store_true", help="Disable RX2 capture")
 
-    # serials
-    ap.add_argument("--rx1-serial", default=None, help="HackRF serial for RX1 (hackrf_transfer -d)")
-    ap.add_argument("--rx2-serial", default=None, help="HackRF serial for RX2 (hackrf_transfer -d)")
-    ap.add_argument("--tx-serial", default=None, help="HackRF serial for TX (hackrf_transfer -d)")
+    ap.add_argument("--rx1-lna", type=int, default=DEFAULT_RX1_LNA_DB, help="RX1 LNA gain")
+    ap.add_argument("--rx1-vga", type=int, default=DEFAULT_RX1_VGA_DB, help="RX1 VGA gain")
+    ap.add_argument("--rx2-lna", type=int, default=DEFAULT_RX2_LNA_DB, help="RX2 LNA gain")
+    ap.add_argument("--rx2-vga", type=int, default=DEFAULT_RX2_VGA_DB, help="RX2 VGA gain")
+
+    ap.add_argument("--no-rx1", action="store_true", default=(not DEFAULT_ENABLE_RX1), help="Disable RX1 capture")
+    ap.add_argument("--no-rx2", action="store_true", default=(not DEFAULT_ENABLE_RX2), help="Disable RX2 capture")
+
+    # serials (env-var override, otherwise fallback default serials)
+    ap.add_argument(
+        "--rx1-serial",
+        default=(_env_serial(ENVVAR_RX1_SERIAL) or DEFAULT_RX1_SERIAL),
+        help=f"HackRF serial for RX1 (hackrf_transfer -d). Env override: {ENVVAR_RX1_SERIAL}",
+    )
+    ap.add_argument(
+        "--rx2-serial",
+        default=(_env_serial(ENVVAR_RX2_SERIAL) or DEFAULT_RX2_SERIAL),
+        help=f"HackRF serial for RX2 (hackrf_transfer -d). Env override: {ENVVAR_RX2_SERIAL}",
+    )
+    ap.add_argument(
+        "--tx-serial",
+        default=(_env_serial(ENVVAR_TX_SERIAL) or DEFAULT_TX_SERIAL),
+        help=f"HackRF serial for TX (hackrf_transfer -d). Env override: {ENVVAR_TX_SERIAL}",
+    )
 
     # output
-    ap.add_argument("--data-root", default=None, help="Data output root (default: <PROJECT_ROOT>/Data)")
-    ap.add_argument("--tag", default="", help="Optional tag appended to session folder name")
-    ap.add_argument("--config-path", default=None, help="Path to user-managed config JSON (snapshotted per-run)")
+    ap.add_argument("--data-root", default=DEFAULT_DATA_ROOT, help="Data output root")
+    ap.add_argument("--tag", default=DEFAULT_TAG, help="Optional tag appended to session folder name")
+    ap.add_argument("--config-path", default=DEFAULT_CONFIG_PATH, help="Path to user-managed config JSON")
 
     # TX knobs
-    ap.add_argument("--amp", type=int, default=DEFAULT_TX_AMP_DB, help="TX amp (-x) (default: 45)")
+    ap.add_argument("--amp", type=int, default=DEFAULT_TX_AMP_DB, help="TX amp (-x)")
 
     ap.add_argument("--rf-amp", dest="rf_amp", action="store_true")
     ap.add_argument("--no-rf-amp", dest="rf_amp", action="store_false")
@@ -877,17 +915,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--pulse", default=DEFAULT_PULSE_IQ, help="TX IQ file")
 
     # timings
-    ap.add_argument("--safety-margin", type=float, default=DEFAULT_SAFETY_MARGIN_S, help="Extra seconds beyond capture time to wait")
-    ap.add_argument(
-        "--rx-ready-timeout",
-        type=float,
-        default=DEFAULT_RX_READY_TIMEOUT_S,
-        help="Seconds before considering an RX 'ready' even if hackrf is silent (default 0.5)",
-    )
+    ap.add_argument("--safety-margin", type=float, default=DEFAULT_SAFETY_MARGIN_S,
+                    help="Extra seconds beyond capture time to wait")
+    ap.add_argument("--rx-ready-timeout", type=float, default=DEFAULT_RX_READY_TIMEOUT_S,
+                    help="Seconds before considering an RX 'ready' even if hackrf is silent")
     ap.add_argument("--tx-wait-timeout", type=float, default=DEFAULT_TX_WAIT_TIMEOUT_S,
-                    help="Max seconds to wait for ALL enabled RX ready before TX (default 10.0)")
-    ap.add_argument("--no-hw-trigger", action="store_true")
-    ap.set_defaults(no_hw_trigger=(not DEFAULT_HW_TRIGGER))
+                    help="Max seconds to wait for ALL enabled RX ready before TX")
+    ap.add_argument("--no-hw-trigger", action="store_true", default=(not DEFAULT_HW_TRIGGER),
+                    help="Disable HW trigger (-H) on RX")
 
     # readiness patterns
     ap.add_argument(
@@ -897,9 +932,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Regex for 'armed' state from RX output (repeatable).",
     )
 
-    ap.add_argument("--list-devices", action="store_true",
-                    help="Print hackrf_info output (connected devices / serials) and exit.")
+    ap.add_argument(
+        "--list-devices",
+        action="store_true",
+        default=False,
+        help="Print hackrf_info output (connected devices / serials) and exit.",
+    )
     return ap
+
 
 
 def main(argv: Optional[List[str]] = None) -> int:
