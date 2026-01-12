@@ -580,11 +580,15 @@ def infer_run_name(iq_path: Path) -> str:
 
 def infer_capture_num(iq_path: Path) -> int:
     # Parses "..._capture_1.iq" safely (avoids grabbing things like 0897)
-    tokens = iq_path.stem.split("_")
+    tokens = (iq_path.stem)
+    #.split("_"))
+    print(tokens[2])
+    '''
     for i, tok in enumerate(tokens[:-1]):
-        if tok.lower() == "capture" and tokens[i + 1].isdigit():
+        if tok.lower() == "rx" and tokens[i + 1].isdigit():
             return int(tokens[i + 1])
-    return 1  # fallback
+    '''
+    return int(tokens[2])  # fallback
 
 def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist, filtering):
     if root_dir is None:
@@ -604,6 +608,8 @@ def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDi
     for iq_path in iq_files:
         run_name = infer_run_name(iq_path)
         capture_num = infer_capture_num(iq_path)
+
+        print("this is the capture num: ", capture_num)
 
         if capture_num == 1:
             minimumMag = minMag_cap1
