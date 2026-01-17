@@ -49,7 +49,7 @@ def _flag_present(argv: list[str], *names: str) -> bool:
 def parse_args() -> RunConfig:
     project_root = Path(__file__).resolve().parents[3]
     default_data_root = str((project_root / "Data").resolve())
-    default_pulse = str((project_root / "Codebase" / "Collection" / "pilot.iq").resolve())
+    default_pulse = str((project_root / "Collection" / "pilot.iq").resolve())
 
     ap = argparse.ArgumentParser("local_collect.py")
     ap.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="Number of runs")

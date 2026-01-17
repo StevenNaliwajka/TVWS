@@ -16,6 +16,7 @@ from Codebase.Collection.Local.utils.zip_utils import _zip_session_dir
 
 def run_collection(cfg: RunConfig) -> Path:
     project_root = Path(__file__).resolve().parents[3]
+
     data_root = Path(cfg.data_root).resolve()
     pulse_path = Path(cfg.pulse_path).resolve()
 
