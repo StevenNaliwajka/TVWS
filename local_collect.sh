@@ -9,10 +9,9 @@ if [[ ! -x "$PY" ]]; then
   PY="python3"
 fi
 
-SCRIPT="$PROJECT_ROOT/Codebase/Collection/Local/local_collect.py"
-
 echo "[local_collect.sh] Project root: $PROJECT_ROOT"
 echo "[local_collect.sh] Python      : $PY"
-echo "[local_collect.sh] Script      : $SCRIPT"
+echo "[local_collect.sh] Mode        : python -m Codebase.Collection.Local.local_collect"
 
-exec "$PY" "$SCRIPT"
+cd "$PROJECT_ROOT"
+exec "$PY" -m Codebase.Collection.Local.local_collect
