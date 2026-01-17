@@ -1,7 +1,7 @@
 %clear
 
 % Define file name and parameters
-data_dir = '/home/kevin/PycharmProjects/TVWS/Data/Latest';
+data_dir = '/opt/TVWS/Data/Latest';
 %data_dir = '/home/kevin/PycharmProjects/TVWS/Codebase/Collection';
 filename = fullfile(data_dir, 'rx2.iq');  % Full path to the IQ capture
 fs = 20e6;  % HackRF sample rate (20 MHz)
