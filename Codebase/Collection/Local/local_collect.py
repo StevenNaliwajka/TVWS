@@ -191,6 +191,45 @@ def _now_stamp() -> str:
     # Example: 2026-01-10T20-18-33
     return datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
 
+def _update_latest_dir(*, latest_dir: Path, run_dir: Path, session_dir: Path, run_name: str) -> None:
+    """
+    Overwrite <data_root>/Latest with the results of a single run directory.
+
+    Copies:
+      - run_dir contents (rx*.iq, *.log, etc.)
+      - session_config.json (from session_dir)
+      - LATEST_SOURCE.txt (pointer back to the original session/run)
+
+    This lets analysis scripts always target Data/Latest.
+    """
+    latest_dir = latest_dir.resolve()
+    run_dir = run_dir.resolve()
+    session_dir = session_dir.resolve()
+
+    # Clear previous Latest
+    if latest_dir.exists():
+        shutil.rmtree(latest_dir, ignore_errors=True)
+    latest_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy run output files into Latest/
+    for p in run_dir.iterdir():
+        dst = latest_dir / p.name
+        if p.is_dir():
+            shutil.copytree(p, dst)
+        else:
+            shutil.copy2(p, dst)
+
+    # Also copy the session config snapshot for reproducibility
+    cfg_path = session_dir / "session_config.json"
+    if cfg_path.exists():
+        shutil.copy2(cfg_path, latest_dir / "session_config.json")
+
+    # Write a pointer back to where Latest came from
+    (latest_dir / "LATEST_SOURCE.txt").write_text(
+        f"session_dir={session_dir}\nrun_name={run_name}\nrun_dir={run_dir}\n",
+        encoding="utf-8",
+    )
+
 
 def _unique_session_name(tag: str) -> str:
     # Unique value: timestamp + pid + last 4 digits of monotonic_ns
@@ -651,6 +690,18 @@ def run_collection(cfg: RunConfig) -> Path:
         rx2_size = rx2_iq_final.stat().st_size if rx2_iq_final.exists() else 0
         print(f"[INFO] RX1 IQ bytes: {rx1_size}")
         print(f"[INFO] RX2 IQ bytes: {rx2_size}")
+
+        # Save FIRST successful run to <data_root>/Latest for analysis scripts
+        if i == 1:
+            latest_dir = data_root / "Latest"
+            _update_latest_dir(
+                latest_dir=latest_dir,
+                run_dir=run_dir,
+                session_dir=session_dir,
+                run_name=run_name,
+            )
+            print(f"[INFO] Updated Latest folder: {latest_dir}")
+
 
         if rx1_size == 0 or rx2_size == 0:
             print(
