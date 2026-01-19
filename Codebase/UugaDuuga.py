@@ -1,3 +1,5 @@
+from importlib.metadata import metadata
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -94,6 +96,95 @@ def align_centers_to_reference(detected_centers, ref_centers, tol):
 
     return aligned
 
+def estimate_minMag_for_rx1_rx2(root_dir: Path,
+                               n_folders: int = 10,
+                               wn=(0.005, 0.3),
+                               cutoff_time=50,
+                               percentile=99.5,
+                               reduction=0.35):
+    """
+    Auto-tune min magnitude separately for capture_1 (Rx1) and capture_2 (Rx2)
+    by scanning the first N folders containing .iq files.
+    Returns: (minMag_cap1, minMag_cap2)
+    """
+    # Find first N folders that contain any .iq
+    folders = []
+    for p in sorted(root_dir.rglob("*")):
+        if p.is_dir() and any(p.glob("*.iq")):
+            folders.append(p)
+            if len(folders) >= n_folders:
+                break
+
+    if not folders:
+        print("[AUTO] No .iq folders found. Using defaults minMag_cap1=minMag_cap2=2.0")
+        return 2.0, 2.0
+
+    def estimate_one_file(iq_path: Path) -> float | None:
+        raw = np.fromfile(iq_path, dtype=np.int8)
+        if raw.size < 4:
+            return None
+
+        I = raw[0::2].astype(np.float64)
+        Q = raw[1::2].astype(np.float64)
+        IQ = I + 1j * Q
+        IQ -= np.mean(IQ)
+
+        tt = np.arange(1, len(IQ) + 1) / 20.0  # keep your axis
+
+        b, a = butter(N=4, Wn=wn, btype="bandpass")
+
+        IQ = filtfilt(b, a, IQ)
+        metadata = MetaDataObj()
+        IQ = filter_signal(metadata, IQ)
+
+        mag = np.abs(IQ)
+        mag = mag[tt > cutoff_time]
+        if mag.size == 0:
+            return None
+
+        return float(np.percentile(mag, percentile))
+
+    cap1_ests = []
+    cap2_ests = []
+
+    for folder in folders:
+        # Grab first file matching capture_1 and capture_2 in this folder (if present)
+        cap1_files = sorted(folder.glob("*rx1*.iq"))
+        cap2_files = sorted(folder.glob("*rx2*.iq"))
+
+        if cap1_files:
+            e1 = estimate_one_file(cap1_files[0])
+            if e1 is not None:
+                cap1_ests.append(e1)
+
+        if cap2_files:
+            e2 = estimate_one_file(cap2_files[0])
+            if e2 is not None:
+                cap2_ests.append(e2)
+
+    # Fallback if missing one side
+    def finalize(est_list, fallback):
+        if not est_list:
+            return fallback
+        avg_est = float(np.mean(est_list))
+        return avg_est * (1.0 - reduction)
+
+    # If one side missing entirely, fall back to the other side (or 2.0)
+    fallback_base = 2.0
+    if cap1_ests:
+        fallback_base = float(np.mean(cap1_ests)) * (1.0 - reduction)
+    elif cap2_ests:
+        fallback_base = float(np.mean(cap2_ests)) * (1.0 - reduction)
+
+    minMag_cap1 = finalize(cap1_ests, fallback_base)
+    minMag_cap2 = finalize(cap2_ests, fallback_base)
+
+    print(f"[AUTO] Rx1/cap1: used {len(cap1_ests)} folders, minMag={minMag_cap1:.3f}")
+    print(f"[AUTO] Rx2/cap2: used {len(cap2_ests)} folders, minMag={minMag_cap2:.3f}")
+
+    return minMag_cap1, minMag_cap2
+
+
 
 def compute_overall_avg_centers_with_gating(centers_rows, tol=15.0):
     """
@@ -131,15 +222,17 @@ def compute_overall_avg_centers_with_gating(centers_rows, tol=15.0):
 def parse_args_with_prompts():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=str, default=None, help="Root directory to process")
+    '''
     parser.add_argument("--minMag_cap1", type=float, default=None, help="Min peak height threshold for cap1")
     parser.add_argument("--minMag_cap2", type=float, default=None, help="Min peak height threshold for cap2")
     parser.add_argument("--cluster", type=int, default=None, help="Min points to qualify as a cluster")
     parser.add_argument("--clusterWeedOutDist", type=float, default=None, help="Max spacing within a cluster")
     parser.add_argument("--filtering", type=int, default=None, help="choice to filter")
-
+    '''
     args = parser.parse_args()
 
     # Prompt if missing (keeps old behavior but interactive)
+    '''
     if args.minMag_cap1 is None:
         val = input("Enter minimumMag1 (default 2): ").strip()
         args.minMag_cap1 = float(val) if val else 2.0
@@ -159,11 +252,11 @@ def parse_args_with_prompts():
     if args.filtering is None:
         val = input("Enter 1 for filtering or 0 for no filtering: ").strip()
         args.filtering = int(val) if val else 1
-
+    '''
     root_dir = Path(args.root) if args.root else None
 
 
-    return root_dir, args.minMag_cap1, args.minMag_cap2, args.cluster, args.clusterWeedOutDist, args.filtering
+    return root_dir
 
 def get_root_dir():
     parser = argparse.ArgumentParser()
@@ -590,7 +683,7 @@ def infer_capture_num(iq_path: Path) -> int:
     '''
     return int(tokens[2])  # fallback
 
-def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist, filtering):
+def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering):
     if root_dir is None:
         print("No folder selected. Exiting.")
         return
@@ -601,6 +694,8 @@ def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDi
     CSV_PATH = ROOT_DIR / "tof_results.csv"
     rows = load_existing_rows(CSV_PATH)  # existing upsert map (Folder,Capture,Pulse)->ToF
 
+    minMag_cap1, minMag_cap2 = estimate_minMag_for_rx1_rx2(ROOT_DIR, n_folders=10)
+
     iq_files = sorted(ROOT_DIR.rglob("*.iq"))
     print(f"Selected folder: {ROOT_DIR}")
     print(f"Found {len(iq_files)} .iq files")
@@ -609,10 +704,10 @@ def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDi
         run_name = infer_run_name(iq_path)
         capture_num = infer_capture_num(iq_path)
 
-        print("this is the capture num: ", capture_num)
+        print("this is the capture num: ", capture_num, "from run: ", run_name)
 
         if capture_num == 1:
-            minimumMag = minMag_cap1
+            minimumMag = 1
         elif capture_num == 2:
             minimumMag = minMag_cap2
         else:
@@ -659,9 +754,11 @@ def bulk_run(root_dir: Path, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDi
     print(f"\nDone. CSV: {CSV_PATH}")
 
 if __name__ == "__main__":
-    root_dir, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist, filtering = parse_args_with_prompts()
+    root_dir = parse_args_with_prompts()
 
-
+    cluster = 7
+    clusterWeedOutDist= 3.5
+    filtering = 1
 
 
     if root_dir is None:
@@ -670,4 +767,4 @@ if __name__ == "__main__":
             print("No folder selected. Exiting.")
             raise SystemExit(1)
 
-    bulk_run(root_dir, minMag_cap1, minMag_cap2, cluster, clusterWeedOutDist, filtering)
+    bulk_run(root_dir, cluster, clusterWeedOutDist, filtering)
