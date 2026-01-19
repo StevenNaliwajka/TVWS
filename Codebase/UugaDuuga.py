@@ -754,7 +754,8 @@ def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering):
     print(f"\nDone. CSV: {CSV_PATH}")
 
 if __name__ == "__main__":
-    root_dir = parse_args_with_prompts()
+    root_dir = Path("/opt/TVWS/Data/Latest/")
+    #parse_args_with_prompts())
 
     cluster = 7
     clusterWeedOutDist= 3.5
