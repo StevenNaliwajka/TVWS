@@ -18,6 +18,7 @@ def run_collection(cfg: RunConfig) -> Path:
     project_root = Path(__file__).resolve().parents[3]
 
     data_root = Path(cfg.data_root).resolve().parents[1]
+    data_root = data_root/ "Codebase"
     pulse_path = Path(cfg.pulse_path).resolve()
 
     session_dir = data_root / _unique_session_name(cfg.tag)
