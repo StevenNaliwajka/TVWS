@@ -29,7 +29,5 @@ if [[ ! -d "$DIR" ]]; then
 fi
 
 "$PY" -m Codebase.UugaDuuga --root "$DIR"
-"$PY" -m Codebase.ToFSheetAverage --root "$DIR"
-"$PY" -m Codebase.ToFSheetAverageAdd --root "$DIR"
 
 echo "All scripts completed successfully."
