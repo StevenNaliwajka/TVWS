@@ -108,16 +108,16 @@ def estimate_minMag_for_rx1_rx2(root_dir: Path,
     Returns: (minMag_cap1, minMag_cap2)
     """
     # Find first N folders that contain any .iq
-    #folders = []
+    folders = []
 
-    folders = [root_dir]
-    '''
+    #folders = [root_dir]
+
     for p in sorted(root_dir.rglob("*")):
         if p.is_dir() and any(p.glob("*.iq")):
             folders.append(p)
             if len(folders) >= n_folders:
                 break
-    '''
+
 
     if not folders:
         print("[AUTO] No .iq folders found. Using defaults minMag_cap1=minMag_cap2=2.0")
