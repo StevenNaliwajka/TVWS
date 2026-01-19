@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 
-from Codebase.Collection.make_pulse_iq import make_pulse_iq
+from Codebase.Collection.Waveform.make_pulse_iq import make_pulse_iq
 from Codebase.FileIO.collect_all_data import load_signal_grid
 from Codebase.FileIO.load_hackrf_iq import load_hackrf_iq
 
