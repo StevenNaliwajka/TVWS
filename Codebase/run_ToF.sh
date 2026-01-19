@@ -22,13 +22,14 @@ if [[ ! -x "$PY" ]]; then
   fi
 fi
 
-:'
-read -r -p "Enter the directory to process: " DIR
-if [[ ! -d "$DIR" ]]; then
-  echo "ERROR: Folder not found: $DIR"
-  exit 1
-fi
-'
+
+#read -r -p "Enter the directory to process: " DIR
+#if [[ ! -d "$DIR" ]]; then
+#  echo "ERROR: Folder not found: $DIR"
+#  exit 1
+#fi
+
+
 "$PY" -m Codebase.UugaDuuga
 
 #--root "$DIR"
