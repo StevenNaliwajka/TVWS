@@ -2,12 +2,12 @@
 set -euo pipefail
 
 # cd to project root (folder containing Codebase/)
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -d "$HERE/Codebase" ]]; then
-  cd "$HERE"
-else
-  cd "$HERE/.."
-fi
+#HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#if [[ -d "$HERE/Codebase" ]]; then
+#  cd "$HERE"
+#else
+#  cd "$HERE/.."
+#fi
 
 # Pick python: prefer project venv, fall back to system python3
 PY="./.venv/bin/python"

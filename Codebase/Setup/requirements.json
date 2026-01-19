@@ -6,6 +6,8 @@
     "pandas",
     "pmt",
     "sshpass",
-    "scipy"
+    "scipy",
+    "openpyxl",
+    "tkinter"
   ]
 }
