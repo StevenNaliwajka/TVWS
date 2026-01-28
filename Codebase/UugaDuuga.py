@@ -190,7 +190,7 @@ def estimate_minMag_for_rx1_rx2(root_dir: Path,
 
 
 
-def compute_overall_avg_centers_with_gating(centers_rows, tol=15.0):
+def compute_overall_avg_centers_with_gating(centers_rows, tol=2):
     """
     Align each run's detected pulse centers to a reference (per capture)
     so missing pulses don't shift indexing.
@@ -467,7 +467,7 @@ def pulse_centers_from_clustered_peaks(clusterLocsArray,
     centers.append(center)
     return np.array(centers, dtype=float)
 
-def compute_overall_avg_centers_with_baseline(centers_rows, baseline_ref, tol=15.0):
+def compute_overall_avg_centers_with_baseline(centers_rows, baseline_ref, tol=2):
     """
     Align every run's detected pulse centers to a fixed baseline reference.
     Prevents pulse index shifting when a pulse is missed.
@@ -510,7 +510,7 @@ def write_pulse_centers_excel(xlsx_path: Path, centers_rows):
     ], dtype=float)
 
     K = len(BASELINE_C2)
-    TOL = 15.0
+    TOLERANCE = 2
 
     # ---------------- Sheet 1: per test (WIDE) ----------------
     ws1 = wb.active
@@ -541,7 +541,7 @@ def write_pulse_centers_excel(xlsx_path: Path, centers_rows):
     for (folder, cap), items in temp.items():
         items.sort(key=lambda x: x[0])              # sort by pulse index
         detected_centers = [c for _, c in items]    # just center times in pulse order
-        aligned = align_centers_to_reference(detected_centers, BASELINE_C2, tol=TOL)  # len K
+        aligned = align_centers_to_reference(detected_centers, BASELINE_C2, tol=TOLERANCE)  # len K
         aligned_by_folder[folder][cap] = aligned
 
     # Write rows (one row per folder)
@@ -575,7 +575,7 @@ def write_pulse_centers_excel(xlsx_path: Path, centers_rows):
     for c in range(1, len(headers2) + 1):
         ws2.cell(row=1, column=c).font = Font(bold=True)
 
-    matched = compute_overall_avg_centers_with_baseline(centers_rows, BASELINE_C2, tol=TOL)
+    matched = compute_overall_avg_centers_with_baseline(centers_rows, BASELINE_C2, tol=TOLERANCE)
 
     for cap in (1, 2):
         for pulse_idx in range(1, K + 1):
@@ -583,7 +583,7 @@ def write_pulse_centers_excel(xlsx_path: Path, centers_rows):
             # use median if that's what you want; swap to np.mean(vals) if you prefer average
             avg = float(np.median(vals)) if vals else ""
             n = len(vals)
-            ws2.append([cap, pulse_idx, avg, n, float(BASELINE_C2[pulse_idx - 1]), TOL])
+            ws2.append([cap, pulse_idx, avg, n, float(BASELINE_C2[pulse_idx - 1]), TOLERANCE])
 
     ws2.freeze_panes = "A2"
     ws2.column_dimensions["A"].width = 10
@@ -713,7 +713,7 @@ def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering):
         if capture_num == 1:
             minimumMag = 1
         elif capture_num == 2:
-            minimumMag = minMag_cap2
+            minimumMag = 4
         else:
             minimumMag = minMag_cap1  # fallback (or skip)
 
@@ -758,12 +758,13 @@ def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering):
     print(f"\nDone. CSV: {CSV_PATH}")
 
 if __name__ == "__main__":
-    root_dir = Path("/opt/TVWS/Data/Latest/")
-    #parse_args_with_prompts())
+    root_dir = parse_args_with_prompts()
+    #Path("/opt/TVWS/Data/Latest/"))
+
 
     cluster = 7
     clusterWeedOutDist= 3.5
-    filtering = 1
+    filtering = 0
 
 
     if root_dir is None:
