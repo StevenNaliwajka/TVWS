@@ -1,0 +1,3 @@
+session_dir=/opt/TVWS/Collection_2026-01-19T12-28-47_2124053_5624
+run_name=run_0001
+run_dir=/opt/TVWS/Collection_2026-01-19T12-28-47_2124053_5624/run_0001

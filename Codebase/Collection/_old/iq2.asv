@@ -1,9 +1,9 @@
 %clear
 
 % Define file name and parameters
-data_dir = '/opt/TVWS/Data/Collection_2026-03-01T17-27-57_1677394_7164/run_0001';
+%data_dir = '/opt/TVWS/Data/Latest';
 %data_dir = '/opt/TVWS/Codebase/Collection';
-filename = fullfile(data_dir, 'rx1.iq');  % Full path to the IQ capture
+filename = fullfile(data_dir, 'pilot.iq');  % Full path to the IQ capture
 fs = 20e6;  % HackRF sample rate (20 MHz)
 fc = 491e6;  % Center frequency (MHz for reference)
 

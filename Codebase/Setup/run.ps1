@@ -23,7 +23,7 @@ try {
 
     Set-Location $ProjectRoot
 
-    $RunPy = Join-Path $ProjectRoot "Codebase\run.py"
+    $RunPy = Join-Path $ProjectRoot "Codebase\UugaDuuga.py"
 
     # --- Logs folder + timestamped log file ---
     $LogsDir = Join-Path $ProjectRoot "Logs"

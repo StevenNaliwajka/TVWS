@@ -7,11 +7,11 @@ from typing import Optional
 # =============================================================================
 # Defaults (edit these, not argparse)
 # =============================================================================
-DEFAULT_RUNS = 1000
+DEFAULT_RUNS = 50
 
 DEFAULT_SAMPLE_RATE_HZ = 20_000_000
-DEFAULT_CENTER_FREQ_HZ = 520_000_000
-DEFAULT_NUM_SAMPLES = 7_000
+DEFAULT_CENTER_FREQ_HZ = 660_000_000
+DEFAULT_NUM_SAMPLES = 600
 
 DEFAULT_LNA_DB = 16
 DEFAULT_VGA_DB = 16
@@ -19,10 +19,10 @@ DEFAULT_VGA_DB = 16
 # Per-RX defaults (used when you do NOT pass --lna/--vga and do NOT pass --rx*-lna/--rx*-vga)
 DEFAULT_RX1_LNA_DB = 8
 DEFAULT_RX1_VGA_DB = 8
-DEFAULT_RX2_LNA_DB = 42
-DEFAULT_RX2_VGA_DB = 42
+DEFAULT_RX2_LNA_DB = 40
+DEFAULT_RX2_VGA_DB = 40
 
-DEFAULT_TX_AMP_DB = 42
+DEFAULT_TX_AMP_DB = 44
 DEFAULT_RF_AMP = True
 DEFAULT_ANTENNA_POWER = False
 

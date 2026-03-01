@@ -5,9 +5,12 @@
     "numpy",
     "pandas",
     "pmt",
-    "sshpass",
     "scipy",
     "openpyxl",
-    "tkinter"
+    "tkinter",
+    "plotly"
+  ],
+  "apt": [
+    "sshpass"
   ]
 }

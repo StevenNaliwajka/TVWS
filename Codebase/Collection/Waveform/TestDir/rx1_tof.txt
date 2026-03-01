@@ -1,0 +1,4 @@
+File: /opt/TVWS/Codebase/Collection/Waveform/TestDir/rx1.iq
+Num ToF pulses: 1
+
+The time of flight for signal 1 is 75.25

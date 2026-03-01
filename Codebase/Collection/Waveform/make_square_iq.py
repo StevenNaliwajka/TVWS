@@ -7,15 +7,22 @@ def generate_square_am_iq(
     dur=0.0001,
     f_carrier=2_000_000,
     f_square=100_000,
-    duty=0.5,
-    a_low=0.45,     # 50% level (above noise floor)
-    a_high=0.90,    # 100% level
+    low_multiplier=2.0,   # <-- LOW lasts 2x longer than HIGH
+    a_low=0.45,
+    a_high=0.90,
     pad_samps=512,
 ):
     """
-    Create complex IQ samples with a square-wave amplitude envelope.
-    Returns complex64 IQ array.
+    Create complex IQ samples with square-wave amplitude envelope.
+
+    low_multiplier:
+        How much longer LOW lasts compared to HIGH.
+        1.0 = 50/50
+        2.0 = LOW twice as long as HIGH
     """
+
+    # ---- derive duty automatically ----
+    duty = 1.0 / (1.0 + low_multiplier)
 
     n = int(sr * dur)
     t = np.arange(n, dtype=np.float64) / sr
@@ -50,13 +57,15 @@ def write_iq_file(iq, filename="square_50_100.iq"):
 
     iq8.tofile(output_path)
 
-    print(f"Created IQ file:")
+    print("Created IQ file:")
     print(f"  {output_path}")
     print(f"  Samples: {len(iq)}")
 
 
 def run():
-    iq = generate_square_am_iq()
+    iq = generate_square_am_iq(
+        low_multiplier=2.0  # LOW time doubled
+    )
     write_iq_file(iq)
 
 
