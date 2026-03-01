@@ -1,11 +1,14 @@
 from importlib.metadata import metadata
-
+import plotly.graph_objects as go
+import plotly.io as pio
 import numpy as np
 import matplotlib.pyplot as plt
+import json
 
 from pathlib import Path
-from scipy.signal import butter, filtfilt, spectrogram, find_peaks
+from scipy.signal import butter, filtfilt, spectrogram, find_peaks, firwin, lfilter
 from Codebase.FileIO.collect_all_data import load_signal_grid
+from scipy.ndimage import gaussian_filter1d, gaussian_laplace
 
 from Codebase.Filter.filter_singal import filter_signal
 
@@ -37,27 +40,213 @@ Current Wants:
     Get some sleep
 '''
 
+def save_interactive_html_clickpick(x, y, iq_path):
+    """
+    Interactive HTML:
+      - Hover on signal works
+      - Click adds multiple picked points (persist during session)
+      - Picked points show hover labels
+      - Shift+Click removes nearest picked point
+      - Download picks CSV button
+    """
+    x = [float(v) for v in x]
+    y = [float(v) for v in y]
+
+    fig = go.Figure()
+
+    # Signal trace (hover shows x,y)
+    fig.add_trace(go.Scattergl(
+        x=x, y=y,
+        mode="lines",
+        name="signal",
+        hovertemplate="x=%{x}<br>y=%{y}<extra></extra>",
+    ))
+
+    # Picked points trace (empty at first)
+    fig.add_trace(go.Scattergl(
+        x=[], y=[],
+        mode="markers",
+        name="picked",
+        marker=dict(size=10, symbol="x"),
+        hovertemplate="PICK<br>x=%{x}<br>y=%{y}<extra></extra>",
+    ))
+
+    fig.update_layout(
+        title=f"{iq_path.parent.name} / {iq_path.name}",
+        xaxis_title="Time",
+        yaxis_title="Magnitude",
+        hovermode="closest",
+    )
+
+    storage_key = f"plotly_picks::{iq_path.stem}"
+
+    post_js = f"""
+    (function() {{
+      const gd = document.querySelector('.plotly-graph-div');
+      if (!gd) return;
+
+      const storageKey = {json.dumps(storage_key)};
+      let picks = [];
+
+      function loadPicks() {{
+        try {{
+          const raw = localStorage.getItem(storageKey);
+          if (!raw) return [];
+          const arr = JSON.parse(raw);
+          return Array.isArray(arr) ? arr : [];
+        }} catch(e) {{
+          return [];
+        }}
+      }}
+
+      function savePicks(arr) {{
+        try {{
+          localStorage.setItem(storageKey, JSON.stringify(arr));
+        }} catch(e) {{}}
+      }}
+
+      function redrawPicks(arr) {{
+        const xs = arr.map(p => p.x);
+        const ys = arr.map(p => p.y);
+        Plotly.restyle(gd, {{ x: [xs], y: [ys] }}, [1]); // picked trace index = 1
+      }}
+
+      function appendPick(x, y) {{
+        // Append visually (does NOT overwrite existing points)
+        Plotly.extendTraces(gd, {{ x: [[x]], y: [[y]] }}, [1]);
+      }}
+
+      function nearestPickIndex(arr, x, y) {{
+        if (!arr.length) return -1;
+        let bestI = 0, bestD = Infinity;
+        for (let i=0; i<arr.length; i++) {{
+          const dx = arr[i].x - x;
+          const dy = arr[i].y - y;
+          const d = dx*dx + dy*dy;
+          if (d < bestD) {{ bestD = d; bestI = i; }}
+        }}
+        return bestI;
+      }}
+
+      function downloadCSV(arr) {{
+         // sort by x ascending (numeric)
+          const sorted = arr.slice().sort((a, b) => a.x - b.x);
+        
+          const header = "x,y\\n";
+          const rows = sorted.map(p => `${{p.x}},${{p.y}}`).join("\\n");
+        
+          const blob = new Blob([header + rows + "\\n"], {{type:"text/csv"}});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "YOURFILE_picks.csv";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+      }}
+
+      function addControlsOnce() {{
+        if (gd.__hasPickControls) return;
+        gd.__hasPickControls = true;
+
+        const container = gd.parentElement;
+        const bar = document.createElement("div");
+        bar.style.display = "flex";
+        bar.style.gap = "8px";
+        bar.style.margin = "8px 0";
+        bar.style.flexWrap = "wrap";
+
+        const clearBtn = document.createElement("button");
+        clearBtn.textContent = "Clear picks";
+        clearBtn.onclick = () => {{
+          picks = [];
+          savePicks(picks);
+          redrawPicks(picks);
+        }};
+
+        const dlBtn = document.createElement("button");
+        dlBtn.textContent = "Download picks (CSV)";
+        dlBtn.onclick = () => downloadCSV(picks);
+
+        const note = document.createElement("div");
+        note.textContent = "Click adds pick. Shift+Click removes nearest pick.";
+        note.style.alignSelf = "center";
+        note.style.opacity = "0.8";
+
+        bar.appendChild(clearBtn);
+        bar.appendChild(dlBtn);
+        bar.appendChild(note);
+        container.insertBefore(bar, gd);
+      }}
+
+      // Initialize from localStorage
+      picks = loadPicks();
+      addControlsOnce();
+      redrawPicks(picks);
+
+      // CLICK HANDLER:
+      // IMPORTANT: Plotly click fires on whichever trace you clicked.
+      // curveNumber 0 = signal, 1 = picked.
+      gd.on('plotly_click', (ev) => {{
+        if (!ev || !ev.points || ev.points.length === 0) return;
+
+        const pt = ev.points[0];
+        const x = pt.x;
+        const y = pt.y;
+
+        // Shift+click removes nearest picked point
+        if (ev.event && ev.event.shiftKey) {{
+          const i = nearestPickIndex(picks, x, y);
+          if (i >= 0) {{
+            picks.splice(i, 1);
+            savePicks(picks);
+            redrawPicks(picks);
+          }}
+          return;
+        }}
+
+        // Normal click: add pick
+        picks.push({{x:x, y:y}});
+        savePicks(picks);
+        appendPick(x, y);
+      }});
+    }})();"""
+
+    out_html = iq_path.parent / f"{iq_path.stem}_interactive.html"
+
+    html = pio.to_html(
+        fig,
+        full_html=True,
+        include_plotlyjs="cdn",
+        config={"displaylogo": False},
+        post_script=post_js
+    )
+
+    out_html.write_text(html, encoding="utf-8")
+    return out_html
 def build_reference_centers(centers_rows, capture_num: int):
     """
-    Build reference pulse center times for a given capture using median per pulse index.
-    centers_rows items: (Folder, Capture, Pulse, CenterTime, FileName)
+    Manually hard-set reference pulse center times.
     Returns np.array ref centers indexed by pulse-1.
+    Same output format as original function.
     """
-    by_pulse = defaultdict(list)
-    for folder, cap, pulse, center_t, fname in centers_rows:
-        if int(cap) != int(capture_num):
-            continue
-        by_pulse[int(pulse)].append(float(center_t))
 
-    if not by_pulse:
-        return np.array([])
+    # ---- TYPE YOUR REFERENCE CENTERS HERE ----
+    center1 = 65.86585647
+    center2 = 127.1104085
+    center3 = 188.3631584
+    center4 = 249.6256098
+    # add more as needed
 
-    K = max(by_pulse.keys())
-    ref = []
-    for p in range(1, K + 1):
-        vals = by_pulse.get(p, [])
-        ref.append(float(np.median(vals)) if vals else np.nan)
-    return np.array(ref, dtype=float)
+    ref = np.array([
+        center1,
+        center2,
+        center3,
+        center4
+    ], dtype=float)
+
+    return ref
 
 
 def align_centers_to_reference(detected_centers, ref_centers, tol):
@@ -101,7 +290,9 @@ def estimate_minMag_for_rx1_rx2(root_dir: Path,
                                wn=(0.005, 0.3),
                                cutoff_time=50,
                                percentile=99.5,
-                               reduction=0.35):
+                               reduction=0.35,
+                                filtering = 0,
+                                sigma = 3):
     """
     Auto-tune min magnitude separately for capture_1 (Rx1) and capture_2 (Rx2)
     by scanning the first N folders containing .iq files.
@@ -123,7 +314,7 @@ def estimate_minMag_for_rx1_rx2(root_dir: Path,
         print("[AUTO] No .iq folders found. Using defaults minMag_cap1=minMag_cap2=2.0")
         return 2.0, 2.0
 
-    def estimate_one_file(iq_path: Path) -> float | None:
+    def estimate_one_file(iq_path: Path, filtering = 0, sigma = 3) -> float | None:
         raw = np.fromfile(iq_path, dtype=np.int8)
         if raw.size < 4:
             return None
@@ -139,9 +330,17 @@ def estimate_minMag_for_rx1_rx2(root_dir: Path,
 
         IQ = filtfilt(b, a, IQ)
         metadata = MetaDataObj()
-        IQ = filter_signal(metadata, IQ)
 
-        mag = np.abs(IQ)
+        #IQ = filter_signal(metadata, IQ)
+        if filtering == 0:
+            mag = np.abs(IQ)
+        elif filtering == 1:
+            mag = gaussian_laplace(np.abs(IQ), sigma)
+        elif filtering == 2:
+
+            mag = gaussian_filter1d(np.abs(IQ), sigma)
+
+
         mag = mag[tt > cutoff_time]
         if mag.size == 0:
             return None
@@ -157,12 +356,12 @@ def estimate_minMag_for_rx1_rx2(root_dir: Path,
         cap2_files = sorted(folder.glob("*rx2*.iq"))
 
         if cap1_files:
-            e1 = estimate_one_file(cap1_files[0])
+            e1 = estimate_one_file(cap1_files[0],filtering, sigma)
             if e1 is not None:
                 cap1_ests.append(e1)
 
         if cap2_files:
-            e2 = estimate_one_file(cap2_files[0])
+            e2 = estimate_one_file(cap2_files[0],filtering, sigma)
             if e2 is not None:
                 cap2_ests.append(e2)
 
@@ -190,7 +389,7 @@ def estimate_minMag_for_rx1_rx2(root_dir: Path,
 
 
 
-def compute_overall_avg_centers_with_gating(centers_rows, tol=2):
+def compute_overall_avg_centers_with_gating(centers_rows, tol=10):
     """
     Align each run's detected pulse centers to a reference (per capture)
     so missing pulses don't shift indexing.
@@ -289,9 +488,10 @@ def process_one_iq_file(iq_path: Path,
                         cluster=7,
                         clusterWeedOutDist=3.5,
                         timeFilter=350,
-                        timeBetweenClusters=40,
+                        timeBetweenClusters=30,
                         gap_for_edges=5,
-                        filtering = 1):
+                        filtering = 0,
+                        sigma = 3):
     """
     Processes a single .iq file and returns:
       - tt, IQ_data
@@ -299,7 +499,7 @@ def process_one_iq_file(iq_path: Path,
       - ToFtimesArray, ToFpeaksArray (blue edge points)
       - CalcToFArray (ToF per pulse)
     """
-
+    '''
     # --- IMPORTANT: open IQ file as BINARY ---
     raw_data = np.fromfile(iq_path, dtype=np.int8)
     if raw_data.size < 4:
@@ -313,6 +513,15 @@ def process_one_iq_file(iq_path: Path,
 
     # DC offset removal
     IQ_data = IQ_data - np.mean(IQ_data)
+    '''
+
+
+    raw_data = np.fromfile(iq_path, dtype=np.int8)
+    IQ_data = raw_data.astype(np.float32).view(np.complex64)
+    IQ_data = IQ_data - np.mean(IQ_data)
+
+    bandstop_taps = firwin(numtaps=301, cutoff=[0.3, 0.99], pass_zero=True)
+    IQ_data = lfilter(bandstop_taps, 1.0, IQ_data)
 
     # Keep your original time axis definition (matches your prior code)
     tt = np.arange(1, len(IQ_data) + 1) / 20.0
@@ -321,12 +530,18 @@ def process_one_iq_file(iq_path: Path,
     b, a = butter(N=4, Wn=wn, btype='bandpass')
     IQ_data = filtfilt(b, a, IQ_data)
 
-    if filtering == 1:
-        IQ_data = filter_signal(metadata, IQ_data)
+
+    #IQ_data = filter_signal(metadata, IQ_data)
 
 
     # Peak detection on magnitude
-    mag = np.abs(IQ_data)
+    if filtering == 0:
+        mag = np.abs(IQ_data)
+    elif filtering == 1:
+        mag = gaussian_laplace(np.abs(IQ_data), sigma)
+    elif filtering == 2:
+
+        mag = gaussian_filter1d(np.abs(IQ_data), sigma)
 
     idx, props = find_peaks(mag, height=minimumMag)
     peaks = mag[idx]
@@ -421,6 +636,8 @@ def process_one_iq_file(iq_path: Path,
         "ToFpeaksArray": ToFpeaksArray,
         "CalcToFArray": CalcToFArray,
         "pulseCentersArray": pulseCentersArray,
+        "picked_idx": clusterLocsArray,
+        "picked_vals": clusterPeaksArray,
     }
 
 def pulse_centers_from_clustered_peaks(clusterLocsArray,
@@ -503,14 +720,15 @@ def write_pulse_centers_excel(xlsx_path: Path, centers_rows):
 
     # Baseline centers (your wired/reference capture baseline)
     BASELINE_C2 = np.array([
-        58.50642884,
-        119.6756707,
-        180.8778875,
-        242.1766518
+        65.86585647,
+        127.1104085,
+    188.3631584,
+    249.6256098
     ], dtype=float)
 
+
     K = len(BASELINE_C2)
-    TOLERANCE = 2
+    TOLERANCE = 7
 
     # ---------------- Sheet 1: per test (WIDE) ----------------
     ws1 = wb.active
@@ -595,36 +813,55 @@ def write_pulse_centers_excel(xlsx_path: Path, centers_rows):
 
     wb.save(xlsx_path)
 
-def save_plot(out, iq_path: Path):
-    tt = out["tt"]
+
+def save_plot(out, iq_path: Path, filtering = 0, sigma = 3):
+    """
+    Saves a plot of |IQ| vs sample index with clustered (final) peaks overlaid.
+
+    Uses:
+      - out["IQ_data"]
+      - out["clusterLocsArray"]  (peak x positions; either sample index OR tt-units)
+      - out["clusterPeaksArray"] (peak magnitudes)
+    """
     IQ_data = out["IQ_data"]
-    clusterLocsArray = out["clusterLocsArray"]
-    clusterPeaksArray = out["clusterPeaksArray"]
-    ToFtimesArray = out["ToFtimesArray"]
-    ToFpeaksArray = out["ToFpeaksArray"]
 
-    plt.figure(figsize=(10, 5))
 
-    plt.plot(tt, np.abs(IQ_data), label="Magnitude")
-    plt.plot(tt, np.imag(IQ_data), label="Imaginary")
+    clusterLocsArray = out.get("clusterLocsArray", np.array([]))
+    clusterPeaksArray = out.get("clusterPeaksArray", np.array([]))
 
-    # Detected peaks (red)
-    if len(clusterLocsArray) > 0:
-        plt.plot(clusterLocsArray, clusterPeaksArray, 'ro', markersize=6, label="Detected Peaks")
+    if filtering == 0:
+        mag = np.abs(IQ_data)
+    elif filtering == 1:
+        mag = gaussian_laplace(np.abs(IQ_data), sigma)
+    elif filtering == 2:
 
-    # Edge peaks (blue)
-    if len(ToFtimesArray) > 0:
-        plt.plot(ToFtimesArray, ToFpeaksArray, 'bo', markersize=6, label="Edge Peaks")
+        mag = gaussian_filter1d(np.abs(IQ_data), sigma)
+    x = out["tt"]
 
-    plt.xlabel("Time")
+    # ---- Convert cluster x locations to sample indices if needed ----
+    # If clusterLocsArray looks like time (floats like 50.2, 120.7, etc),
+    # convert using your tt scaling (tt = (idx+1)/20 in your original code).
+    cluster_x = np.array(clusterLocsArray)
+
+    if clusterLocsArray.size > 0:
+        plt.scatter(clusterLocsArray, clusterPeaksArray, c="red", s=28, label="Picked Peaks", zorder=5)
+
+    # ---- Plot ----
+    plt.figure(figsize=(11, 4))
+    plt.plot(x, mag, label="|IQ|", alpha=0.8)
+
+    if len(cluster_x) > 0:
+        plt.scatter(cluster_x, clusterPeaksArray, c="red", s=28, label="Picked Peaks", zorder=5)
+
+    plt.title(f"{iq_path.parent.name} / {iq_path.name}")
+    plt.xlabel("MicroSeconds")
     plt.ylabel("Magnitude")
-    plt.title(iq_path.name)
-    plt.grid(True, which="both", linestyle="--", alpha=0.4)
+    plt.grid(True, which="both", linestyle="--", alpha=0.35)
     plt.minorticks_on()
     plt.legend()
     plt.tight_layout()
 
-    out_png = iq_path.parent / f"{iq_path.stem}_plot.png"
+    out_png = iq_path.parent / f"{iq_path.stem}_peaks.png"
     plt.savefig(out_png, dpi=200)
     plt.close()
     return out_png
@@ -687,7 +924,133 @@ def infer_capture_num(iq_path: Path) -> int:
     '''
     return int(tokens[2])  # fallback
 
-def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering):
+def interactive_pick_points(x, y, title="Pick points", snap=True):
+    """
+    Interactive picker:
+      - Arrow keys move a cursor along x/y (sample-by-sample)
+      - Enter/Space picks the current cursor point
+      - Left click picks nearest point to mouse
+      - 'u' undo last pick
+      - 's' save picks (returns list)
+      - 'q' or Esc closes
+
+    Returns: list of (x_pick, y_pick)
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+
+    picked = []
+    idx = 0
+
+    fig, ax = plt.subplots(figsize=(11, 4))
+    ax.plot(x, y, alpha=0.85, label="signal")
+    ax.set_title(title)
+    ax.grid(True, which="both", linestyle="--", alpha=0.35)
+    ax.minorticks_on()
+
+    # Cursor visuals
+    vline = ax.axvline(x[idx], linewidth=1.0)
+    cursor_pt, = ax.plot([x[idx]], [y[idx]], marker="o", markersize=6, linestyle="None")
+
+    # Picked visuals
+    picked_scatter = ax.scatter([], [], s=40, label="picked", zorder=5)
+    info = ax.text(
+        0.01, 0.98, "", transform=ax.transAxes, va="top", ha="left"
+    )
+
+    def _update_cursor():
+        nonlocal idx
+        idx = int(np.clip(idx, 0, len(x) - 1))
+        vline.set_xdata([x[idx], x[idx]])
+        cursor_pt.set_data([x[idx]], [y[idx]])
+        info.set_text(
+            f"idx={idx}  x={x[idx]:.6f}  y={y[idx]:.6f}\n"
+            f"picked={len(picked)}  (←/→ move, Enter pick, click pick, u undo, s save, q quit)"
+        )
+        fig.canvas.draw_idle()
+
+    def _refresh_picks():
+        if picked:
+            px = [p[0] for p in picked]
+            py = [p[1] for p in picked]
+        else:
+            px, py = [], []
+        picked_scatter.set_offsets(np.c_[px, py] if len(px) else np.empty((0, 2)))
+        fig.canvas.draw_idle()
+
+    def _pick_at_index(i):
+        picked.append((float(x[i]), float(y[i])))
+        _refresh_picks()
+
+    def _nearest_index(xq):
+        # fast nearest by x (assumes x is monotonic; yours is tt so it is)
+        i = int(np.searchsorted(x, xq))
+        if i <= 0:
+            return 0
+        if i >= len(x):
+            return len(x) - 1
+        # choose closer of i and i-1
+        return i if abs(x[i] - xq) < abs(x[i - 1] - xq) else i - 1
+
+    def on_key(event):
+        nonlocal idx
+        if event.key in ("right", "d"):
+            idx += 1
+            _update_cursor()
+        elif event.key in ("left", "a"):
+            idx -= 1
+            _update_cursor()
+        elif event.key in ("up", "w"):
+            idx += 50
+            _update_cursor()
+        elif event.key in ("down", "s"):
+            idx -= 50
+            _update_cursor()
+        elif event.key in ("enter", " "):
+            _pick_at_index(idx)
+        elif event.key == "u":
+            if picked:
+                picked.pop()
+                _refresh_picks()
+        elif event.key in ("escape", "q"):
+            plt.close(fig)
+
+    def on_click(event):
+        nonlocal idx
+        if event.inaxes != ax:
+            return
+        if event.button != 1:  # left-click only
+            return
+        # pick nearest by x
+        i = _nearest_index(event.xdata)
+        idx = i
+        _update_cursor()
+        _pick_at_index(i)
+
+    fig.canvas.mpl_connect("key_press_event", on_key)
+    fig.canvas.mpl_connect("button_press_event", on_click)
+
+    ax.legend(loc="upper right")
+    _update_cursor()
+    plt.tight_layout()
+    #plt.show()
+
+    return picked
+
+
+def save_manual_picks_csv(iq_path: Path, picked, out_name_suffix="_manual_picks.csv"):
+    """
+    Save picked points to a CSV next to the iq file.
+    """
+    out_csv = iq_path.parent / f"{iq_path.stem}{out_name_suffix}"
+    with open(out_csv, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["x", "y"])
+        for x, y in picked:
+            w.writerow([x, y])
+    return out_csv
+
+def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering, sigma):
     if root_dir is None:
         print("No folder selected. Exiting.")
         return
@@ -698,7 +1061,7 @@ def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering):
     CSV_PATH = ROOT_DIR / "tof_results.csv"
     rows = load_existing_rows(CSV_PATH)  # existing upsert map (Folder,Capture,Pulse)->ToF
 
-    minMag_cap1, minMag_cap2 = estimate_minMag_for_rx1_rx2(ROOT_DIR, n_folders=10)
+    minMag_cap1, minMag_cap2 = estimate_minMag_for_rx1_rx2(ROOT_DIR, n_folders=10,filtering=filtering, sigma = sigma)
 
     iq_files = sorted(ROOT_DIR.rglob("*.iq"))
     print(f"Selected folder: {ROOT_DIR}")
@@ -713,7 +1076,7 @@ def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering):
         if capture_num == 1:
             minimumMag = 1
         elif capture_num == 2:
-            minimumMag = 4
+            minimumMag = 33
         else:
             minimumMag = minMag_cap1  # fallback (or skip)
 
@@ -724,7 +1087,9 @@ def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering):
             minimumMag=minimumMag,
             cluster=cluster,
             clusterWeedOutDist=clusterWeedOutDist,
-            filtering=filtering
+            filtering=filtering,
+            sigma = sigma,
+
         )
         if out is None:
             print(f"[SKIP] {iq_path} (empty/too small)")
@@ -748,9 +1113,41 @@ def bulk_run(root_dir: Path, cluster, clusterWeedOutDist, filtering):
             print(f"{iq_path.name}: The time of flight for signal {i} is {tof}")
 
         # Save plot + txt INSIDE the same folder as the iq file (once)
-        png_path = save_plot(out, iq_path)
+
+
+        # ---- interactive/manual picking ----
+        # Recompute the plotted magnitude exactly like save_plot does
+        IQ_data = out["IQ_data"]
+        if filtering == 0:
+            mag = np.abs(IQ_data)
+        elif filtering == 1:
+            mag = gaussian_laplace(np.abs(IQ_data), sigma)
+        elif filtering == 2:
+            mag = gaussian_filter1d(np.abs(IQ_data), sigma)
+
+        x = out["tt"]
+
+        # Show interactive picker
+        picked = interactive_pick_points(
+            x, mag,
+            title=f"{iq_path.parent.name} / {iq_path.name}\n(click to pick, arrows to move, Enter pick, u undo, q quit)"
+        )
+
+        # Save picks (if any)
+        if picked:
+            out_csv = save_manual_picks_csv(iq_path, picked)
+            print(f"[MANUAL] Saved {len(picked)} picks -> {out_csv.name}")
+        else:
+            print("[MANUAL] No picks made.")
+
+        # Keep your existing outputs too
+        png_path = save_plot(out, iq_path, filtering, sigma)
         txt_path = save_tof_txt(out, iq_path)
         print(f"[OK] {iq_path.name} -> {txt_path.name}, {png_path.name}")
+
+        html_path = save_interactive_html_clickpick(x, mag, iq_path)
+        print(f"[INTERACTIVE SAVED] {html_path}")
+
     xlsx_path = ROOT_DIR / "pulse_center_times.xlsx"
     write_pulse_centers_excel(xlsx_path, centers_rows)
     print(f"[OK] Wrote pulse centers Excel: {xlsx_path}")
@@ -765,6 +1162,7 @@ if __name__ == "__main__":
     cluster = 7
     clusterWeedOutDist= 3.5
     filtering = 0
+    sigma = 4
 
 
     if root_dir is None:
@@ -773,4 +1171,4 @@ if __name__ == "__main__":
             print("No folder selected. Exiting.")
             raise SystemExit(1)
 
-    bulk_run(root_dir, cluster, clusterWeedOutDist, filtering)
+    bulk_run(root_dir, cluster, clusterWeedOutDist, filtering, sigma)
